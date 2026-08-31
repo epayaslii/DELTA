@@ -1,0 +1,28 @@
+# 50Salads -- primary target for the multimodal-SSL temporal-alignment work.
+# The original DELTA underperforms fully-supervised methods here (avg MoC 20.9 vs ~28.4);
+# the paper attributes this to unreliable transcript->frame boundaries under frequent
+# transitions. That is what we attack first.
+
+dataset:
+  name: 50salads
+  root: data/50salads           # expects groundTruth/  mapping.txt  splits/
+  video_dir: data/50salads/videos   # rgb-XX-Y.avi  (30 fps, top view)
+  feature_dir: data/50salads/features   # existing I3D, for parity runs
+
+features:
+  backbone: vl3-siglip          # VideoLLaMA3 vision tower (SigLIP so400m NaViT)
+  text_encoder: siglip2         # same space as the visual features
+  text_raw: false               # false -> "a video of a person adding oil"
+  out_dir: data/50salads/features_vl3siglip
+
+  source_fps: 30.0
+  label_fps: 15.0               # benchmark grid == groundTruth resolution
+  window: 1                     # 1 = per-frame image encoder; >1 = temporal window pooled
+  window_stride: 2
+  l2_normalize: true
+
+# split protocol: 5 splits, Mean-over-Classes (MoC) accuracy
+eval:
+  num_splits: 5
+  observation: [0.20, 0.30]
+  prediction: [0.10, 0.20, 0.30, 0.50]

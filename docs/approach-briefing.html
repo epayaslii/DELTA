@@ -1,0 +1,452 @@
+<title>Aligning DELTA</title>
+<meta name="description" content="Research briefing: multimodal self-supervised temporal alignment for transcript-only dense long-term action anticipation, targeting 50Salads." />
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Archivo:wght@500;600;700&family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;1,6..72,400&family=IBM+Plex+Mono:wght@400;500&display=swap');
+
+  :root {
+    --bg: #f3f4f6;
+    --surface: #ffffff;
+    --surface-2: #eceef1;
+    --ink: #1a1e24;
+    --ink-soft: #3d444e;
+    --muted: #697280;
+    --line: #dde1e6;
+    --line-strong: #c6ccd3;
+    --accent: #1f6f4d;        /* herb green — "aligned / go" */
+    --accent-ink: #124832;
+    --flag: #b45309;          /* burnt amber — the 50Salads gap */
+    --flag-soft: #f4ead9;
+    --code-bg: #f0f1f3;
+    --shadow: 0 1px 2px rgba(20,25,33,.04), 0 8px 28px rgba(20,25,33,.06);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #101317;
+      --surface: #171b21;
+      --surface-2: #1e242c;
+      --ink: #e9ecef;
+      --ink-soft: #c2c8d0;
+      --muted: #8b95a1;
+      --line: #2a313a;
+      --line-strong: #3a424d;
+      --accent: #5cc99a;
+      --accent-ink: #a9e6cc;
+      --flag: #e0973f;
+      --flag-soft: #33281a;
+      --code-bg: #1d2229;
+      --shadow: 0 1px 2px rgba(0,0,0,.3), 0 10px 30px rgba(0,0,0,.35);
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #101317;
+    --surface: #171b21;
+    --surface-2: #1e242c;
+    --ink: #e9ecef;
+    --ink-soft: #c2c8d0;
+    --muted: #8b95a1;
+    --line: #2a313a;
+    --line-strong: #3a424d;
+    --accent: #5cc99a;
+    --accent-ink: #a9e6cc;
+    --flag: #e0973f;
+    --flag-soft: #33281a;
+    --code-bg: #1d2229;
+    --shadow: 0 1px 2px rgba(0,0,0,.3), 0 10px 30px rgba(0,0,0,.35);
+  }
+
+  * { box-sizing: border-box; }
+  body {
+    background: var(--bg);
+    color: var(--ink);
+    font-family: 'Newsreader', Georgia, 'Times New Roman', serif;
+    font-size: 18px;
+    line-height: 1.62;
+    -webkit-font-smoothing: antialiased;
+  }
+  .wrap { max-width: 760px; margin: 0 auto; padding: 72px 28px 120px; }
+
+  h1, h2, h3, .eyebrow, th, .label, .rail-title {
+    font-family: 'Archivo', system-ui, sans-serif;
+  }
+  h1 {
+    font-size: clamp(2rem, 5.2vw, 3.1rem);
+    line-height: 1.06;
+    font-weight: 700;
+    letter-spacing: -0.02em;
+    text-wrap: balance;
+    margin: 0 0 .5rem;
+  }
+  h2 {
+    font-size: 1.5rem;
+    font-weight: 700;
+    letter-spacing: -0.01em;
+    margin: 0 0 .9rem;
+    text-wrap: balance;
+  }
+  h3 {
+    font-size: 1.06rem;
+    font-weight: 600;
+    margin: 0 0 .35rem;
+  }
+  p { margin: 0 0 1rem; }
+  a { color: var(--accent-ink); text-decoration-thickness: 1px; text-underline-offset: 2px; }
+  strong { font-weight: 600; }
+
+  .eyebrow {
+    font-size: .74rem;
+    font-weight: 600;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: var(--accent);
+    margin: 0 0 .7rem;
+  }
+  section { margin-top: 64px; }
+  section > .eyebrow { display: block; }
+
+  .lede {
+    font-size: 1.24rem;
+    line-height: 1.5;
+    color: var(--ink-soft);
+  }
+  .meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px 22px;
+    margin-top: 26px;
+    padding-top: 18px;
+    border-top: 1px solid var(--line);
+    font-family: 'IBM Plex Mono', ui-monospace, monospace;
+    font-size: .78rem;
+    color: var(--muted);
+  }
+  .meta b { color: var(--ink-soft); font-weight: 500; }
+
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    padding: 24px 26px;
+    box-shadow: var(--shadow);
+  }
+  .card + .card { margin-top: 16px; }
+
+  .flag-card {
+    background: var(--flag-soft);
+    border: 1px solid color-mix(in srgb, var(--flag) 34%, transparent);
+    border-left: 3px solid var(--flag);
+    border-radius: 8px;
+    padding: 18px 22px;
+    margin: 20px 0;
+  }
+  .flag-card .label { color: var(--flag); }
+
+  .label {
+    font-size: .72rem;
+    font-weight: 600;
+    letter-spacing: 0.13em;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin-bottom: .5rem;
+  }
+
+  .scroll { overflow-x: auto; margin: 20px 0; border: 1px solid var(--line); border-radius: 10px; }
+  table { border-collapse: collapse; width: 100%; font-size: .92rem; }
+  thead th {
+    background: var(--surface-2);
+    font-size: .74rem;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    font-weight: 600;
+    color: var(--muted);
+    text-align: left;
+    padding: 11px 16px;
+    white-space: nowrap;
+  }
+  tbody td {
+    padding: 11px 16px;
+    border-top: 1px solid var(--line);
+    font-family: 'Newsreader', serif;
+  }
+  tbody td.num { font-family: 'IBM Plex Mono', monospace; font-variant-numeric: tabular-nums; }
+  tr.highlight td { background: color-mix(in srgb, var(--accent) 9%, transparent); }
+  tr.highlight td:first-child { box-shadow: inset 3px 0 0 var(--accent); }
+  .muted-row td { color: var(--muted); }
+
+  code, .mono { font-family: 'IBM Plex Mono', ui-monospace, monospace; font-size: .86em; }
+  p code, li code { background: var(--code-bg); padding: 1px 5px; border-radius: 4px; }
+
+  ul.clean { list-style: none; padding: 0; margin: 0 0 1rem; }
+  ul.clean li { padding-left: 20px; position: relative; margin-bottom: .55rem; }
+  ul.clean li::before {
+    content: ""; position: absolute; left: 2px; top: .62em;
+    width: 6px; height: 6px; border-radius: 50%; background: var(--accent);
+  }
+
+  /* literature clusters */
+  .lit { display: grid; gap: 14px; }
+  .lit .card h3 { font-family: 'Archivo', sans-serif; }
+  .lit p { margin: 0; font-size: .96rem; color: var(--ink-soft); }
+  .lit .refs { margin-top: .6rem; font-family: 'IBM Plex Mono', monospace; font-size: .76rem; color: var(--muted); line-height: 1.5; }
+
+  /* approach timeline rail */
+  .rail { position: relative; margin-top: 26px; padding-left: 34px; }
+  .rail::before {
+    content: ""; position: absolute; left: 9px; top: 6px; bottom: 6px;
+    width: 2px; background: var(--line-strong);
+  }
+  .phase { position: relative; margin-bottom: 26px; }
+  .phase::before {
+    content: ""; position: absolute; left: -34px; top: 3px;
+    width: 20px; height: 20px; border-radius: 50%;
+    background: var(--surface); border: 2px solid var(--accent);
+  }
+  .phase[data-done]::before {
+    background: var(--accent);
+    box-shadow: 0 0 0 4px color-mix(in srgb, var(--accent) 18%, transparent);
+  }
+  .phase .rail-title {
+    font-size: 1.05rem; font-weight: 600; margin-bottom: .3rem;
+    display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap;
+  }
+  .phase .tag {
+    font-family: 'IBM Plex Mono', monospace; font-size: .66rem;
+    text-transform: uppercase; letter-spacing: .1em;
+    padding: 2px 7px; border-radius: 4px;
+    background: var(--surface-2); color: var(--muted);
+  }
+  .phase[data-done] .tag { background: var(--accent); color: #fff; }
+  :root[data-theme="dark"] .phase[data-done] .tag,
+  :root:not([data-theme="light"]) .phase[data-done] .tag { color: #0d1512; }
+  .phase p { font-size: .96rem; margin-bottom: .4rem; }
+  .phase ol { margin: .4rem 0 0; padding-left: 1.1rem; font-size: .92rem; color: var(--ink-soft); }
+  .phase ol li { margin-bottom: .3rem; }
+
+  .refs-block {
+    margin-top: 22px; font-family: 'IBM Plex Mono', monospace;
+    font-size: .76rem; line-height: 1.7; color: var(--muted);
+  }
+  hr { border: 0; border-top: 1px solid var(--line); margin: 0; }
+  .foot { margin-top: 72px; padding-top: 20px; border-top: 1px solid var(--line); font-size: .82rem; color: var(--muted); }
+
+  @media (max-width: 560px) {
+    body { font-size: 16.5px; }
+    .wrap { padding: 48px 20px 90px; }
+  }
+</style>
+
+<div class="wrap">
+
+  <header>
+    <p class="eyebrow">UPC&nbsp;·&nbsp;IRI &nbsp;— &nbsp;Research briefing</p>
+    <h1>Aligning DELTA</h1>
+    <p class="lede">Learning to predict future actions by multimodal self-supervised
+    learning. The near-term bet: fix the transcript&#8202;&rarr;&#8202;video
+    <em>temporal alignment</em> that holds DELTA back on 50Salads, using
+    vision-language foundation models and a self-supervised, structurally
+    constrained alignment objective.</p>
+    <div class="meta">
+      <span><b>Base work</b> DELTA — Maté &amp; Dimiccoli</span>
+      <span><b>Datasets</b> 50Salads → Breakfast</span>
+      <span><b>This phase</b> temporal alignment</span>
+      <span><b>Date</b> 2026-08-31</span>
+    </div>
+  </header>
+
+  <section>
+    <p class="eyebrow">01 — The starting point</p>
+    <h2>DELTA does dense anticipation from transcripts alone</h2>
+    <p>Dense long-term action anticipation (DLTA) predicts a <em>frame-level</em>
+    labelling of a future horizon. DELTA learns it from <strong>procedural
+    transcripts</strong> — the ordered list of actions in a video, with no
+    timestamps and no durations — instead of the dense frame labels every prior
+    method needs.</p>
+    <p>A single shared encoder feeds three branches. A <strong>temporal alignment
+    (TA)</strong> module grounds each transcript action in the video by dynamic
+    programming over a boundary detector, producing dense pseudo-labels
+    <code>Y*</code>. Those pseudo-labels are the <em>only</em> supervision that
+    reaches a <strong>segmentation head</strong> (regularised by CTC for
+    order-consistency) and a <strong>parallel anticipation decoder</strong> with a
+    duration head and a linear-chain CRF. Text enters as DistilBERT action-name
+    embeddings through locally masked cross-attention. Visual input is frozen I3D.</p>
+  </section>
+
+  <section>
+    <p class="eyebrow">02 — The problem worth solving</p>
+    <h2>On 50Salads, DELTA trails — and the paper says why</h2>
+    <div class="scroll">
+      <table>
+        <thead>
+          <tr><th>50Salads · avg MoC</th><th>Supervision</th><th class="num">Avg.</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>FUTR</td><td>Full frame labels</td><td class="num">25.96</td></tr>
+          <tr><td>ActFusion</td><td>Full frame labels</td><td class="num">28.39</td></tr>
+          <tr class="muted-row"><td>WS-DA</td><td>Weak + frame labels for observed part</td><td class="num">21.30</td></tr>
+          <tr class="highlight"><td>DELTA (deterministic)</td><td>Transcript only</td><td class="num">20.92</td></tr>
+          <tr class="muted-row"><td>DELTA (stochastic, best-of-sample)</td><td>Transcript only</td><td class="num">28.51</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p>For contrast, on <strong>Breakfast</strong> DELTA <em>matches or beats</em>
+    fully supervised methods (avg MoC ≈ 29–37 vs ActFusion 28.5). The gap is
+    specific to 50Salads.</p>
+    <div class="flag-card">
+      <p class="label">Why 50Salads is hard for transcript-only alignment</p>
+      <ul class="clean">
+        <li>~20 fine-grained action instances per ~6-minute video — a single
+        misplaced boundary in <code>Y*</code> propagates into both the
+        segmentation target and the future transcript <code>T*</code>.</li>
+        <li>17 visually similar actions (<span class="mono">cut_tomato</span>,
+        <span class="mono">cut_cucumber</span>, <span class="mono">cut_cheese</span>…)
+        from one fixed top-down camera — I3D motion features under-separate them,
+        so the boundary detector's posteriors are noisy exactly where it matters.</li>
+        <li>High intra-class duration variance — the duration head barely helps
+        (+0.2 MoC on 50S vs +3.3 on BF).</li>
+      </ul>
+    </div>
+    <p style="font-size:1.14rem;line-height:1.5;color:var(--ink-soft);border-left:3px solid var(--accent);padding-left:18px;margin:24px 0;">
+    <strong>Thesis.</strong> The bottleneck is the <em>quality of the
+    transcript&#8202;&rarr;&#8202;frame alignment</em>, and that is dominated by how
+    discriminative the frozen visual features are and by how the alignment is
+    inferred. Both are addressable with vision-language foundation models and a
+    differentiable, monotonicity-constrained alignment objective.</p>
+  </section>
+
+  <section>
+    <p class="eyebrow">03 — Landscape</p>
+    <h2>What the literature gives us to work with</h2>
+    <div class="lit">
+      <div class="card">
+        <h3>Transcript-supervised segmentation</h3>
+        <p>Ways to turn a noisy frame&#8202;&rarr;&#8202;label posterior into a
+        monotone, transcript-consistent labelling. DELTA's TA is built on
+        <strong>ATBA</strong>'s boundary detector — the natural place to
+        intervene. <strong>HAL</strong> is the strong recent baseline.</p>
+        <p class="refs">ECTC '16 · NN-Viterbi '18 · D³TW / CDFL '19 · MuCon '21 · ATBA (CVPR '24) · HAL (CVPR '26)</p>
+      </div>
+      <div class="card">
+        <h3>Self-supervised temporal alignment</h3>
+        <p>Optimal transport with a temporal-consistency prior is now the
+        best-practice replacement for greedy DP / Viterbi — and it is
+        differentiable, so it can sit <em>inside</em> training.
+        <strong>Ali et al. (ICCV '25)</strong> do alignment and segmentation
+        jointly with one fused Gromov–Wasserstein model; <strong>CLOT</strong> is
+        from the same lab as DELTA.</p>
+        <p class="refs">TCC (CVPR '19) · LAV / VAVA (CVPR '21–'22) · GTCC (CVPR '23) · Temporally-Consistent Unbalanced OT (CVPR '24) · CLOT (ICCV '25) · Joint SSL Align+Seg (ICCV '25)</p>
+      </div>
+      <div class="card">
+        <h3>Vision-language &amp; video foundation features</h3>
+        <p>No one has reported an I3D&#8202;&rarr;&#8202;FM swap for transcript-only
+        DLTA. <strong>VideoLLaMA 3</strong>'s vision tower ships standalone
+        (<span class="mono">VL3-SigLIP-NaViT</span>, ~1152-d, any-resolution).
+        DINOv2 is the pure-vision ablation; procedure-aware pretraining
+        (StepFormer, Zhong '23) learns the step structure we want.</p>
+        <p class="refs">VideoLLaMA 3 · InternVideo2 · SigLIP 2 · DINOv2 · Procedure-aware repr. (CVPR '23) · StepFormer (CVPR '23)</p>
+      </div>
+      <div class="card">
+        <h3>Language / LLM priors for LTA — adjacent</h3>
+        <p>Symbolic future-action prediction with language priors. Complementary
+        to DELTA's dense forecast; a possible late add-on (an LLM prior over
+        <code>T*</code>), not this phase.</p>
+        <p class="refs">PALM (ECCV '24) · Plausible LVLM anticipation (CVPR '24) · ObjectPrompt (WACV '24)</p>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <p class="eyebrow">04 — Plan</p>
+    <h2>Four phases, gated on alignment quality</h2>
+    <p>Swap I3D + DistilBERT for a paired VL foundation model, then replace
+    DELTA's greedy DP alignment with a self-supervised, OT-based,
+    monotonicity-constrained transcript&#8202;&rarr;&#8202;frame alignment trained
+    jointly with the encoder. Evaluate first by alignment / segmentation quality
+    on 50Salads, then by downstream DLTA.</p>
+
+    <div class="rail">
+      <div class="phase" data-done>
+        <div class="rail-title">Foundation-model features <span class="tag">done — this repo</span></div>
+        <p><code>delta.features.extract</code> emits <code>(D, T)</code> per video
+        with <code>T = len(groundTruth)</code> — a drop-in replacement for I3D.
+        Backbones: <span class="mono">vl3-siglip</span> (default),
+        <span class="mono">siglip2</span>, <span class="mono">dinov2</span>,
+        <span class="mono">i3d-compat</span> (parity). Text via the SigLIP-2 tower
+        (same space) or DistilBERT (parity).</p>
+      </div>
+      <div class="phase">
+        <div class="rail-title">Drop-in swap — measure alignment quality <span class="tag">next</span></div>
+        <p>Re-run TA + TAS with each feature set, everything else fixed. Score
+        <code>Y*</code> against ground truth on the observed part
+        (<span class="mono">MoF · MoC · edit · F1@{10,25,50}</span> + boundary
+        offset + τ-alignment across same-activity videos).</p>
+        <ol>
+          <li>Grid: <span class="mono">{I3D, VL3-SigLIP, SigLIP2, DINOv2} × {DistilBERT, SigLIP2-text}</span>.</li>
+          <li>Isolates: <em>do better features alone fix 50Salads alignment?</em></li>
+          <li>Needs a DELTA re-implementation — no official code yet; ATBA + FUTR / ActFusion are public starting points.</li>
+        </ol>
+      </div>
+      <div class="phase">
+        <div class="rail-title">Multimodal self-supervised alignment objective</div>
+        <p>Added to the TA stage, in order of payoff / risk. CTC and the CRF stay untouched — they are complementary.</p>
+        <ol>
+          <li><strong>Contrastive transcript-step ↔ frame-window</strong> (InfoNCE with <code>Y*</code> as soft assignment) — makes the crossmodal grounding a real similarity. Cheap, low-risk.</li>
+          <li><strong>OT alignment decoder</strong> with a monotonicity prior (fused Gromov–Wasserstein), re-solved each iteration — removes the "one early error propagates" failure mode.</li>
+          <li><strong>Cross-video temporal cycle-consistency</strong> among same-activity videos — a shared monotone phase representation.</li>
+          <li><strong>VLM pseudo-supervision</strong> — zero-shot VideoLLaMA-3 scoring of frame windows against the transcript vocabulary. Higher cost, precompute offline.</li>
+        </ol>
+      </div>
+      <div class="phase">
+        <div class="rail-title">Downstream DLTA</div>
+        <p>Feed the improved alignment into DELTA's two-stage schedule. Evaluate
+        the standard grid — observe 20 / 30 %, predict 10 / 20 / 30 / 50 %, five
+        splits, MoC. Target: close the gap to ActFusion (28.4) on 50Salads with
+        <em>no regression</em> on Breakfast.</p>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <p class="eyebrow">05 — Milestones</p>
+    <h2>Gates</h2>
+    <div class="scroll">
+      <table>
+        <thead>
+          <tr><th>#</th><th>Milestone</th><th>Gate</th></tr>
+        </thead>
+        <tbody>
+          <tr><td class="num">M0</td><td>Datasets staged, sanity checks pass, 50S features extracted</td><td>transcripts + frame counts correct</td></tr>
+          <tr><td class="num">M1</td><td>DELTA TA + TAS reproduced with I3D on 50S</td><td><code>Y*</code> MoF within ~2 pts of paper</td></tr>
+          <tr><td class="num">M2</td><td>Feature-swap grid</td><td>≥ +3 MoF on <code>Y*</code> vs I3D → go</td></tr>
+          <tr><td class="num">M3</td><td>Contrastive alignment objective</td><td>improves <code>Y*</code> MoC + boundary error</td></tr>
+          <tr><td class="num">M4</td><td>OT alignment decoder</td><td>≥ M3, fewer propagated boundary errors</td></tr>
+          <tr><td class="num">M5</td><td>Full DLTA, 50S grid</td><td>beats DELTA 20.9; approach FUTR 25</td></tr>
+          <tr><td class="num">M6</td><td>Breakfast + ablations + writeup</td><td>no BF regression</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section>
+    <p class="eyebrow">06 — Risks &amp; open questions</p>
+    <h2>What could stall this</h2>
+    <ul class="clean">
+      <li><strong>No official DELTA code.</strong> Re-implementation is on the critical path — ask whether the authors will share it.</li>
+      <li><strong>Kaggle mirrors.</strong> Confirm the 50Salads features are I3D (not IDT) and the label fps (15 vs 30) before trusting the config; raw video may need the official Dundee download.</li>
+      <li><strong>VL3-SigLIP throughput.</strong> ~0.5–1 M frames for 50S at 15 fps — fine on the cluster with the provided SLURM array; window mode multiplies cost.</li>
+      <li><strong>Duration stays ill-posed</strong> from transcripts — acknowledged in the paper, not a target of this phase.</li>
+      <li><strong>Fair comparison.</strong> Swapping features shifts the input distribution vs published I3D numbers — always report an I3D re-run under our own code as the control.</li>
+      <li><strong>Open:</strong> deterministic only for now, or also the stochastic best-of-sample protocol? (Notes say alignment first → deterministic.)</li>
+    </ul>
+  </section>
+
+  <section>
+    <p class="eyebrow">07 — References</p>
+    <div class="refs-block">
+      DELTA — Maté &amp; Dimiccoli. &nbsp;·&nbsp; ATBA — Xu &amp; Zheng, CVPR 2024. &nbsp;·&nbsp; HAL — Huang et al., CVPR 2026. &nbsp;·&nbsp; MuCon — Souri et al., TPAMI 2021. &nbsp;·&nbsp; NN-Viterbi — Richard et al., CVPR 2018. &nbsp;·&nbsp; TCC — Dwibedi et al., CVPR 2019. &nbsp;·&nbsp; VAVA — Liu et al., CVPR 2022. &nbsp;·&nbsp; GTCC — Donahue &amp; Kambhamettu, CVPR 2023. &nbsp;·&nbsp; Temporally-Consistent Unbalanced OT — Xu &amp; Gould, CVPR 2024. &nbsp;·&nbsp; CLOT — Bueno-Benito &amp; Dimiccoli, ICCV 2025. &nbsp;·&nbsp; Joint SSL Video Alignment &amp; Action Segmentation — Ali et al., ICCV 2025 (arXiv 2503.16832). &nbsp;·&nbsp; VideoLLaMA 3 — Zhang et al., 2025 (arXiv 2501.13106). &nbsp;·&nbsp; InternVideo2 — Wang et al., 2024. &nbsp;·&nbsp; SigLIP 2 — Tschannen et al., 2025. &nbsp;·&nbsp; Procedure-aware video repr. — Zhong et al., CVPR 2023. &nbsp;·&nbsp; StepFormer — Dvornik et al., CVPR 2023. &nbsp;·&nbsp; PALM — Kim et al., ECCV 2024. &nbsp;·&nbsp; Plausible LVLM anticipation — Mittal et al., CVPR 2024. &nbsp;·&nbsp; FUTR — Gong et al., CVPR 2022. &nbsp;·&nbsp; ActFusion — Gong, Kwak &amp; Cho, NeurIPS 2024.
+    </div>
+  </section>
+
+  <p class="foot">Companion to <span class="mono">docs/approach.md</span> and the
+  feature-extraction pipeline in the DELTA repo. Numbers quoted from the DELTA
+  manuscript (Tables 1&nbsp;&amp;&nbsp;3, Top-1 MoC protocol).</p>
+
+</div>

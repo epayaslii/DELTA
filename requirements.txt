@@ -1,0 +1,23 @@
+# Core
+torch>=2.2
+numpy>=1.24
+pyyaml>=6.0
+tqdm>=4.66
+einops>=0.7
+
+# Video decoding / frame sampling
+decord>=0.6.0            # fast, deterministic frame indexing
+av>=11.0                 # fallback decoder (PyAV)
+
+# Feature backbones (install the ones you use)
+transformers>=4.44       # VL3-SigLIP-NaViT (VideoLLaMA3 vision tower), DINOv2, DistilBERT
+timm>=1.0                # some ViT backbones
+sentencepiece            # SigLIP / DistilBERT tokenizers
+accelerate>=0.30
+
+# Optional
+flash-attn>=2.5 ; platform_system == "Linux"   # speeds up VL3-SigLIP; skip if build fails
+sentence-transformers>=3.0                       # convenience text embeddings
+
+# Dev
+pytest>=8.0

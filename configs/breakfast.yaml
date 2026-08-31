@@ -1,0 +1,25 @@
+# Breakfast -- second target. DELTA already matches/beats supervised here, so this
+# is mostly a "does the multimodal-SSL alignment also help / not regress" check.
+
+dataset:
+  name: breakfast
+  root: data/breakfast
+  video_dir: data/breakfast/videos      # P##/cam##/P##_<activity>.avi  (15 fps)
+  feature_dir: data/breakfast/features
+
+features:
+  backbone: vl3-siglip
+  text_encoder: siglip2
+  text_raw: false
+  out_dir: data/breakfast/features_vl3siglip
+
+  source_fps: 15.0
+  label_fps: 15.0
+  window: 1
+  window_stride: 1
+  l2_normalize: true
+
+eval:
+  num_splits: 4
+  observation: [0.20, 0.30]
+  prediction: [0.10, 0.20, 0.30, 0.50]
