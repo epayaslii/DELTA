@@ -6,6 +6,7 @@ from .eval import (
     kendall_tau_alignment,
     pseudo_label_agreement,
     segmentation_report,
+    segments,
 )
 
 __all__ = [
@@ -16,4 +17,5 @@ __all__ = [
     "kendall_tau_alignment",
     "pseudo_label_agreement",
     "segmentation_report",
+    "segments",
 ]

@@ -5,9 +5,10 @@
 
 dataset:
   name: 50salads
-  root: data/50salads           # expects groundTruth/  mapping.txt  splits/
-  video_dir: data/50salads/videos   # rgb-XX-Y.avi  (30 fps, top view)
-  feature_dir: data/50salads/features   # existing I3D, for parity runs
+  root: data/50salads           # groundTruth/ mapping.txt splits/ features/ (dinggd/50salads bundle)
+  video_dir: data/50salads/videos   # rgb-XX-Y.avi (30 fps, top view) -- NOT included in the bundle;
+                                    # official host (cvip.computing.dundee.ac.uk) is currently down
+  feature_dir: data/50salads/features   # bundled I3D (2048-d, 30 fps), for parity runs
 
 features:
   backbone: vl3-siglip          # VideoLLaMA3 vision tower (SigLIP so400m NaViT)
@@ -16,9 +17,9 @@ features:
   out_dir: data/50salads/features_vl3siglip
 
   source_fps: 30.0
-  label_fps: 15.0               # benchmark grid == groundTruth resolution
+  label_fps: 30.0               # benchmark grid == groundTruth resolution (per-frame @ 30 fps)
   window: 1                     # 1 = per-frame image encoder; >1 = temporal window pooled
-  window_stride: 2
+  window_stride: 1
   l2_normalize: true
 
 # split protocol: 5 splits, Mean-over-Classes (MoC) accuracy

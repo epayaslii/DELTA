@@ -37,7 +37,9 @@ DATASET_DEFAULTS = {
     "50salads": dict(
         num_splits=5,
         source_fps=30.0,
-        label_fps=15.0,          # benchmark grid
+        label_fps=30.0,          # benchmark grid: features & groundTruth are per-frame @ 30 fps
+                                 # (dinggd/50salads bundle: feature T == len(groundTruth), ~11.7k-17.8k frames).
+                                 # Many models (FUTR/ActFusion) additionally downsample by 2 at load time.
         num_classes=19,          # 17 actions + action_start + action_end  (mapping.txt is authoritative)
         video_glob=["*.avi"],
         # 50Salads ships one "rgb-XX-Y.avi" per recording; ground-truth id == video stem

@@ -6,7 +6,7 @@ build-backend = "setuptools.build_meta"
 name = "delta-msl"
 version = "0.0.1"
 description = "Multimodal self-supervised temporal alignment for transcript-only dense long-term action anticipation"
-requires-python = ">=3.10"
+requires-python = ">=3.9"
 dynamic = ["dependencies"]
 
 [tool.setuptools]

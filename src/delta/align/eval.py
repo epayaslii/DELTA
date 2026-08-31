@@ -50,8 +50,8 @@ def mean_over_classes(pred: np.ndarray, gt: np.ndarray, ignore: set[int] | None 
     return float(np.mean(accs)) if accs else float("nan")
 
 
-def _segments(labels: np.ndarray) -> list[tuple[int, int, int]]:
-    """-> list of (label, start, end_exclusive)."""
+def segments(labels: np.ndarray) -> list[tuple[int, int, int]]:
+    """Run-length encode a per-frame labeling -> list of (label, start, end_exclusive)."""
     labels = np.asarray(labels)
     if len(labels) == 0:
         return []
@@ -59,6 +59,9 @@ def _segments(labels: np.ndarray) -> list[tuple[int, int, int]]:
     starts = np.concatenate([[0], bounds])
     ends = np.concatenate([bounds, [len(labels)]])
     return [(int(labels[s]), int(s), int(e)) for s, e in zip(starts, ends)]
+
+
+_segments = segments  # backwards-compatible alias
 
 
 def edit_score(pred: np.ndarray, gt: np.ndarray, norm: bool = True) -> float:
