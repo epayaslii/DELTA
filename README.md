@@ -73,7 +73,8 @@ tests/           CPU-only unit tests  (pytest -q)
 - [x] Dataset indexing + transcript derivation (50Salads, Breakfast)
 - [x] Foundation-model feature extraction pipeline (frame-grid aligned to GT)
 - [x] Alignment / segmentation metrics
-- [ ] DELTA re-implementation (no official code yet) — baseline reproduction
-- [ ] Swap I3D → FM features in the TA module; measure pseudo-label quality
-- [ ] Multimodal self-supervised alignment objective
-- [ ] Full two-stage DLTA training + Obs%/pred% evaluation
+- [x] **Stage 0** — env (`.venv`, py3.11) + 50Salads benchmark bundle downloaded & verified (`dinggd/50salads`, 30 fps)
+- [x] **Stage 1** — 50Salads dataset analysis: `delta.data.stats`, `delta.viz.timeline`, [`notebooks/stage1_dataset_analysis.ipynb`](notebooks/stage1_dataset_analysis.ipynb), [`docs/50salads-notes.md`](docs/50salads-notes.md) *(video-watching skipped — raw `.avi` host is down)*
+- [ ] **Stage 2** — vendor ATBA, drive with zero-shot / warm-up posteriors, measure `Y*` quality on 50Salads
+- [ ] **Stage 3** — minimal FUTR-style DLTA decoder + Obs%/pred% evaluation
+- [ ] (research) multimodal self-supervised alignment objective — `docs/temporal-alignment.md` §5

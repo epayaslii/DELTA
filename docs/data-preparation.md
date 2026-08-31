@@ -24,23 +24,37 @@ feature extraction.
 
 ## Sources
 
-- **50Salads**: raw videos + annotations from the official page
-  (<https://cvip.computing.dundee.ac.uk/datasets/foodpreparation/50salads/>).
-  Kaggle mirror `fedecvg/50salads-idt` provides pre-extracted features and the
-  benchmark bundle; **check whether its `features/` are I3D or IDT** and whether
-  the label grid is 15 or 30 fps, then set `features.label_fps` / `source_fps`
-  in `configs/50salads.yaml` accordingly.
-- **Breakfast**: `mohamedadlyi/breakfast-activity-recognition-dataset` on Kaggle,
-  or the official coarse/fine annotations from
-  <https://serre-lab.clps.brown.edu/resource/breakfast-actions-dataset/>.
+### Benchmark bundle (features + labels + splits) — what we use
+
+**50Salads:** `dinggd/50salads` on HuggingFace — one `50salads.zip` (~4.0 GB)
+containing `50salads/{features/*.npy, groundTruth/*.txt, splits/*.bundle,
+mapping.txt}` in exactly the layout above. This is the standard MS-TCN / FUTR /
+ActFusion bundle.
 
 ```bash
-pip install kaggle
-kaggle datasets download -d fedecvg/50salads-idt -p data/_dl --unzip
-kaggle datasets download -d mohamedadlyi/breakfast-activity-recognition-dataset -p data/_dl --unzip
-# then arrange into the layout above (a helper is intentionally not committed
-# until we see the real archive structure)
+curl -L -C - -o data/_dl/50salads.zip \
+  https://huggingface.co/datasets/dinggd/50salads/resolve/main/50salads.zip
+unzip -q data/_dl/50salads.zip -d data/        # -> data/50salads/
 ```
+
+Verified facts (from the download):
+- **30 fps** — `features/<id>.npy` is `(2048, T)` with `T == len(groundTruth)`,
+  T ≈ 7.6k–18.1k. `configs/50salads.yaml` and `DATASET_DEFAULTS` set
+  `source_fps = label_fps = 30`. (FUTR/ActFusion additionally downsample ×2 at
+  load time — a model choice, not the stored grid.)
+- 19 classes: 17 actions + `action_start` + `action_end` (mid-level granularity).
+- No `background` label; `action_start`/`action_end` wrap every video (~14% of
+  frames) and are treated as background by `delta.data.stats`.
+
+**Breakfast:** `dinggd/breakfast` on HuggingFace (same structure, larger).
+
+### Raw videos
+
+Needed only for frame-level visualisation. The official host
+`cvip.computing.dundee.ac.uk` is **currently down (NXDOMAIN)** and there is no
+known public mirror of the `.avi` files. Ask the professor / lab for a copy.
+Drop them at `data/50salads/videos/rgb-XX-Y.avi` and set `video_dir` in the
+config; the pipeline picks them up automatically.
 
 ## Sanity checks before extracting
 
