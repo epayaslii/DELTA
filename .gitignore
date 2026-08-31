@@ -1,0 +1,25 @@
+# data & artifacts (anchored to repo root so src/delta/data & src/delta/features are kept)
+/data/
+/features/
+/outputs/
+/checkpoints/
+/logs/
+wandb/
+*.npy
+*.pkl
+*.pth
+*.ckpt
+
+# python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+env/
+*.egg-info/
+.ipynb_checkpoints/
+
+# os / editor
+.DS_Store
+.idea/
+.vscode/
