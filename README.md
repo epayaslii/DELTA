@@ -13,8 +13,13 @@ grounding.
 supervised methods: avg MoC 20.9 vs ~28.4, because boundaries/durations are hard
 to recover from transcripts under frequent transitions).
 
-See [`docs/approach.md`](docs/approach.md) for the research plan and
-[`docs/data-preparation.md`](docs/data-preparation.md) for dataset setup.
+## Docs
+
+| Doc | What's in it |
+|---|---|
+| [`docs/temporal-alignment.md`](docs/temporal-alignment.md) | **TA reference** — how the alignment module works (ATBA-grounded), TA→TAS→DLTA dependency, weaknesses, research directions. Start here. |
+| [`docs/approach.md`](docs/approach.md) | Research plan, literature review, milestones, questions for the professor |
+| [`docs/data-preparation.md`](docs/data-preparation.md) | 50Salads / Breakfast layout, download, sanity checks |
 
 ## Install
 
