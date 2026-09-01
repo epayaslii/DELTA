@@ -17,8 +17,10 @@ to recover from transcripts under frequent transitions).
 
 | Doc | What's in it |
 |---|---|
-| [`docs/temporal-alignment.md`](docs/temporal-alignment.md) | **TA reference** — how the alignment module works (ATBA-grounded), TA→TAS→DLTA dependency, weaknesses, research directions. Start here. |
+| [`docs/temporal-alignment.md`](docs/temporal-alignment.md) | **TA reference** — how the alignment module works (ATBA-grounded), TA→TAS→DLTA dependency, weaknesses, the VLM-direct direction. Start here. |
+| [`docs/delta-code.md`](docs/delta-code.md) | The DELTA implementation ("WLTA", `third_party/delta_wlta/`) — what it is, how the experiments run, the gotchas |
 | [`docs/approach.md`](docs/approach.md) | Research plan, literature review, milestones, questions for the professor |
+| [`docs/50salads-notes.md`](docs/50salads-notes.md) | Why 50Salads is hard for transcript-only alignment, with numbers |
 | [`docs/data-preparation.md`](docs/data-preparation.md) | 50Salads / Breakfast layout, download, sanity checks |
 
 ## Install
