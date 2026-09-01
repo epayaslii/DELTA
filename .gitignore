@@ -26,3 +26,5 @@ env/
 
 # vendored third-party code (clone locally, see third_party/README.md)
 /third_party/*/
+# the DELTA/WLTA code from the group — not ours to redistribute
+/WLTA/
