@@ -51,11 +51,16 @@ transcripts in videos with frequent transitions and higher temporal variability.
 - Breakfast, by contrast, has ~6 actions/video and stronger scene/appearance cues
   per step, so the DP alignment locks on quickly.
 
-**Thesis of this project:** the bottleneck is the *quality of the transcript→frame
-alignment* on 50Salads, and that is dominated by (a) how discriminative the frozen
-visual features are and (b) how the alignment is inferred (greedy DP over noisy
-posteriors). Both are addressable with **vision-language foundation models** and a
-**self-supervised, structurally-constrained alignment objective**.
+**Thesis of this project:** existing transcript-supervised methods (ATBA, and the
+CVPR-2026 SOTA HAL) do **alignment *through* segmentation** — a trained frame
+classifier produces posteriors `P`, and the alignment is read off `P`. On
+50Salads that classifier is a near-worst case (fixed camera, near-duplicate
+fine-grained classes; Stage 1 measured I3D consecutive-frame distance at only
+**1.11×** the random level at true boundaries). We instead do **alignment
+directly**: a frozen **vision-language model** gives a transcript×frame
+similarity matrix, and a **monotonic / optimal-transport** alignment reads `Y*`
+straight off it — no frame classifier in the alignment path. See
+`docs/temporal-alignment.md` §5.
 
 ---
 
@@ -72,15 +77,21 @@ The lineage DELTA sits in — recover frame labels from an ordered action list:
 - **MuCon** (Souri et al., TPAMI 2021) — mutual consistency between a temporal
   segmentation branch and a sequence (length + transcript) branch; fast, no
   Viterbi at train time.
-- **ATBA** (Xu & Zheng, CVPR 2024) — **action-transition-aware boundary alignment**:
-  a boundary detector filters noisy frames and aligns to transitions efficiently.
-  *This is the module DELTA's TA is built on* — the natural place to intervene.
-- **HAL** (Huang et al., CVPR 2026) — hierarchical causal process: slowly-varying
-  latent actions govern fast visual dynamics. Strong recent transcript-level baseline.
+- **ATBA** (Xu & Zheng, CVPR 2024) — action-transition-aware boundary alignment:
+  a class-agnostic boundary detector + drop-allowed DP over classifier
+  posteriors. DELTA's TA follows its boundary detector. **Our baseline**, not
+  our method. Reports Breakfast / Hollywood / CrossTask — **not 50Salads**.
+- **HAL** (Huang et al., CVPR 2026, `arXiv:2602.24275`) — current
+  transcript-supervised segmentation SOTA. Hierarchical causal process:
+  slowly-varying latent actions govern fast visual dynamics; hierarchical
+  pyramid transformer, sparse transition constraints. Purely visual + transcript,
+  **no text embeddings**; also **does not report 50Salads**. Optional baseline.
+- **2by2** (Xu et al., CVPR 2025, `arXiv:2412.12829`) — weakly-supervised
+  *global* action segmentation (activity-level, not per-video transcript).
 
-Takeaway: every method here is a way to make a *noisy frame→label posterior* yield
-a *monotone, transcript-consistent* segmentation. Better posteriors (features) and
-a better structural prior (OT / monotonic attention) both move the needle.
+Takeaway: all of these do "alignment through a trained classifier" and mostly
+**skip 50Salads** — the regime where that approach is weakest. That gap is the
+opening.
 
 ### 2.2 Self-supervised temporal alignment of video (and video↔text)
 
@@ -129,6 +140,13 @@ are competitive-to-better and, crucially, **language-aligned**.
   **StepFormer** (Dvornik et al., CVPR 2023, unsupervised step localisation from
   narration), **VideoTaskformer**. These learn exactly the step-structure prior we
   want; candidates for the visual backbone or an auxiliary objective.
+- **Exploring VLMs for Open-Vocabulary Zero-Shot Action Segmentation**
+  (`arXiv:2602.21406`) — CLIP-style frame↔text similarity on 50Salads / Breakfast
+  / GTEA, **per-frame classification, no transcript, no alignment**. Reports that
+  frame-CLIP struggles with subtle visual differences and temporal consistency →
+  argues for **video-native** VLM towers and an explicit **alignment** step
+  (i.e. our direction). The nearest published point to what we're doing, and a
+  baseline for "VLM similarity without alignment".
 
 ### 2.4 Language / LLMs for long-term anticipation (adjacent)
 
@@ -141,11 +159,17 @@ a possible late-stage add-on (LLM prior over `T*`), not this phase.
 
 ## 3. Proposed approach
 
-**One sentence:** replace I3D+DistilBERT with a paired VL foundation model, and
-replace DELTA's greedy DP alignment with a *self-supervised, OT-based,
-monotonicity-constrained* transcript→frame alignment trained jointly with the
-encoder — evaluated first by alignment/segmentation quality on 50Salads, then by
-downstream DLTA.
+**One sentence:** do transcript→video temporal alignment **directly** from a
+frozen VLM's transcript×frame similarity, via a monotonic / optimal-transport
+alignment — no trained frame classifier in the alignment path — and feed the
+resulting `Y*` into a DLTA decoder; established methods (ATBA, HAL) and the
+naive-uniform floor are baselines. Evaluated first by `Y*` quality on 50Salads,
+then by downstream DLTA MoC.
+
+**Why this framing:** ATBA / HAL do "alignment through segmentation" and mostly
+skip 50Salads — the regime where a trained classifier is weakest. Removing the
+classifier from the alignment path is the structural change; 50Salads is where
+it should matter most. (`docs/temporal-alignment.md` §5.)
 
 ### Phase 1 — Foundation-model features *(done — this repo)*
 
@@ -156,56 +180,47 @@ drop-in replacement for I3D. Backbones: `vl3-siglip` (default), `siglip2`,
 
 **Deliverable:** `features_vl3siglip/` + `action_name_embeddings.npy` for 50S & BF.
 
-### Phase 2 — Drop-in swap, measure alignment quality
+### Phase 2 — Baselines + VLM similarity matrix
 
-Re-run DELTA's TA + TAS stage with each feature set, **hold everything else fixed**,
-and report on the *observed* part against ground truth (we have GT — we just don't
-train on it):
+- **Baselines** on 50Salads I3D features, scored as `Y*` vs held-out GT
+  (**MoF, MoC, edit, F1@{10,25,50}**, median per-transition boundary offset;
+  `delta.align`):
+  - naive-uniform alignment — **MoC 0.34** (Stage 1)
+  - vendored **ATBA** (`iSEE-Laboratory/CVPR24_ATBA`) + a 50Salads config
+  - *(optional)* HAL
+  - supervised warm-up classifier → ATBA — the **ceiling** for classifier-based alignment
+- **VLM similarity matrix** `s(n,t) = sim(g_text(action_n), f_vis(frame_t))` for
+  `{VL3-SigLIP, SigLIP2, InternVideo2} × {bare label, generated description}`.
+  Diagnostic: zero-shot argmax confusion vs GT, and how peaked `s` is at true
+  boundaries — does the VLM separate `cut_tomato`/`cut_cheese` where I3D doesn't?
 
-- pseudo-label `Y*` vs GT: **MoF, MoC, edit, F1@{10,25,50}** (`delta.align`)
-- boundary localisation error (median frame offset per transition)
-- τ-alignment of encoder features across same-activity videos (TCC metric)
+### Phase 3 — VLM-direct alignment
 
-Grid: `{I3D, VL3-SigLIP, SigLIP2, DINOv2} × {DistilBERT, SigLIP2-text}`. This
-isolates *"do better features alone fix 50Salads alignment?"* before we add any
-new objective. (Needs a DELTA re-implementation — no official code yet; ATBA +
-FUTR/ActFusion are public starting points.)
+Read `Y*` straight off `s` with a **monotonic alignment** — no frame classifier:
 
-### Phase 3 — Multimodal self-supervised alignment objective
-
-Add to the TA stage, in order of expected payoff / risk:
-
-1. **Contrastive transcript-step ↔ frame-window alignment.** Using paired
-   VL features, pull each transcript step `T_n` toward its aligned frames and push
-   from others (InfoNCE with the current `Y*` as soft assignment). This makes the
-   crossmodal grounding a *real* similarity, not just an embedding lookup, and
-   gives the boundary detector a language-anchored signal. Cheap, low-risk.
-2. **OT alignment decoder** replacing / regularising the DP step: solve a
-   transcript→frame transport with a **monotonicity (temporal-consistency) prior**
-   (fused Gromov-Wasserstein, à la Ali et al. 2025 / Xu & Gould 2024), fully
-   differentiable, re-solved each iteration. Removes the "one early error
-   propagates" failure mode the paper calls out for 50Salads.
-3. **Cross-video temporal cycle-consistency** among same-activity videos (TCC/GTCC)
-   as an auxiliary encoder loss — enforces a shared, monotone phase representation,
-   which is exactly what long-horizon anticipation needs.
-4. **VLM pseudo-supervision** (higher risk / cost): caption or score frame windows
-   with VideoLLaMA-3 against the transcript vocabulary → an extra soft label to
-   regularise `Y*`. Zero-shot, no training, but slow to precompute.
-
-Keep DELTA's CTC (order consistency) and CRF (future structure) untouched — they
-are complementary to all of the above.
+1. **Order-preserving DP / DTW** on `s` respecting transcript order (drop-allowed
+   for background). Simplest; the first real number.
+2. **Order-preserving optimal transport** (soft-DTW / ASOT-style Gromov–
+   Wasserstein with a monotonicity prior; Ali et al. ICCV'25, Xu & Gould CVPR'24)
+   — differentiable, soft assignment.
+3. **Boundary uncertainty** — from the soft assignment, emit `P(boundary_r = t)`;
+   carry the *distribution* into `T*`, `d*` and the crossmodal mask.
+4. *(later)* fine-tune the alignment cost (small adapter on `f_vis` / `g_text`)
+   with CTC + cross-video temporal cycle-consistency — still no per-frame
+   classification head.
 
 ### Phase 4 — Downstream DLTA
 
-Feed the improved alignment into DELTA's two-stage schedule; evaluate on the
-standard grid (Obs 20/30 % → pred 10/20/30/50 %), 5 splits, MoC. Targets:
-close the gap to ActFusion (28.4) on 50S; **no regression** on Breakfast.
+Feed the best `Y*` into a minimal FUTR-style decoder (+ CRF, CTC later). Evaluate
+the standard grid (Obs 20/30 % → pred 10/20/30/50 %), 5 splits, MoC. Targets:
+beat DELTA deterministic **20.9** on 50S; approach FUTR 25.96; no Breakfast
+regression. Report the upstream `Y*` quality as the bound.
 
 ### Ablations to report
 
-FM vs I3D · paired-text vs DistilBERT · +contrastive · +OT · +TCC · OT-vs-DP ·
-per-objective on 50S *and* BF · robustness to degraded alignment (repeat the
-paper's `deg-TA` probe).
+VLM vs I3D similarity · video-native vs frame-CLIP `f_vis` · label vs description
+text · DP vs OT alignment · hard vs uncertainty-aware boundaries · vs ATBA/HAL ·
+50S *and* BF · robustness to a degraded similarity matrix.
 
 ---
 
