@@ -19,6 +19,7 @@ to recover from transcripts under frequent transitions).
 |---|---|
 | [`docs/temporal-alignment.md`](docs/temporal-alignment.md) | **TA reference** — how the alignment module works (ATBA-grounded), TA→TAS→DLTA dependency, weaknesses, the VLM-direct direction. Start here. |
 | [`docs/delta-code.md`](docs/delta-code.md) | The DELTA implementation ("WLTA", `third_party/delta_wlta/`) — what it is, how the experiments run, the gotchas |
+| [`docs/hal-analysis.md`](docs/hal-analysis.md) | HAL (CVPR'26) = ATBA + a VAE regulariser; can it be a stronger TA baseline? verdict + first experiment |
 | [`docs/approach.md`](docs/approach.md) | Research plan, literature review, milestones, questions for the professor |
 | [`docs/50salads-notes.md`](docs/50salads-notes.md) | Why 50Salads is hard for transcript-only alignment, with numbers |
 | [`docs/data-preparation.md`](docs/data-preparation.md) | 50Salads / Breakfast layout, download, sanity checks |

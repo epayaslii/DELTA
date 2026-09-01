@@ -30,6 +30,33 @@ TA output   |--A--|----B----|--C--|----D----|   → Y* = per-frame labels
 Breakfast (ATBA supp. Tables 3–4, "P.L." column). The targets DELTA trains on
 are noisy even on the easier dataset.
 
+### 1.1 Supervision — a common point of confusion
+
+**ATBA, HAL and DELTA all use the same weak signal: the transcript** (ordered
+action list, no timestamps). "Weakly supervised" means *weaker than frame-level*,
+not *unsupervised*. In practice the transcript is obtained by run-length-collapsing
+the ground-truth frame labels — you keep the *order*, discard the *boundaries*;
+the method never sees the boundaries. (In the wild it comes from narration /
+metadata.) DELTA is **not** different from ATBA/HAL on the supervision axis — its
+novelty is the *task* (dense long-term anticipation, not just segmentation).
+
+**All three discard the transcript at inference.** It only ever feeds the training
+loss:
+- ATBA/HAL: transcript → `BoundaryDetector` → pseudo-labels → frame-CE. At test
+  (`test.py`), the model does a forward pass and `argmax(fr_logit)`; the boundary
+  detector and the `transcript` argument are never called. **[code]**
+- DELTA: transcript → TA module → `Y*` → `T*`, `d*` → decoder/CRF targets. At test
+  the model gets only `X_obs`; *"the transcript, the full video, the alignment
+  module, and the pseudo-labels are discarded"* (paper). **[paper]**
+
+The transcript's information lives in the trained weights (like pseudo-labelling /
+distillation). A new test video genuinely has no transcript — that is the point of
+the weak setting. GT is used at test only to *score* the output.
+
+Older WSAS methods (NN-Viterbi, CDFL, TASL, D³TW) do **not** discard it — they run
+Viterbi/DTW against candidate transcripts at inference. ATBA/HAL/DELTA are
+"alignment-free at inference".
+
 ---
 
 ## 2. The mechanism (ATBA §3)
