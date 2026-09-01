@@ -136,55 +136,114 @@ catastrophic — CTC and crossmodal grounding absorb moderate pseudo-label noise
   thing training can improve is `P`; the alignment procedure itself never
   learns from its mistakes.
 
----
-
-## 5. Research directions (conceptual only)
-
-Ordered by leverage, each tied to a specific mechanism above:
-
-1. **Better `P` via vision-language similarity.** `V^a` wants a per-frame,
-   per-*named*-class score — exactly `sim(text("cut tomato"), frame_t)`. A VLM
-   supplies it informatively from step 0, removing the cold-start that forces
-   the 40-epoch warm-up, and disambiguates fine-grained classes via
-   objects/context. *Lowest risk.*
-2. **Better boundary term.** Replace `v^b` (JS-divergence of *posteriors*) with
-   discontinuity in a self-supervised frame embedding (DINOv2 / VideoMAE), or a
-   learned boundary head — attacks the candidate-generation bottleneck.
-3. **Differentiable / OT alignment.** Swap the hard DP for a Sinkhorn transcript
-   →frame transport with a monotonicity prior (ASOT CVPR'24; Ali et al.
-   ICCV'25), so gradients flow through the alignment cost.
-4. **Soft / uncertainty-aware boundaries.** Emit `P(boundary = t)` per
-   transition; propagate the distribution into `T*`, `d*`, and the crossmodal
-   mask instead of a single hard label. *Cleanest "TA-specific" contribution;
-   not done for transcript-only anticipation.*
-5. **Tune the untuned knobs** (`μ, w^b, w^a, λ`) for 50Salads before concluding
-   the method fails there.
-
-**[note]** Directions 1–3 individually resemble StepFormer / VAVA / Drop-DTW /
-Ali et al. The open space is: doing this **for dense long-term anticipation**
-(alignment error → forecast error, unstudied), **uncertainty-aware**
-pseudo-boundaries feeding a decoder, and the fixed-camera fine-grained regime
-(50Salads) where `v^b` demonstrably underperforms. Using a VLM is not by itself
-a contribution.
+### The root issue
+All of the above trace to one design choice: **alignment is derived from a
+trained frame classifier** (`P`). The classifier is the bottleneck, and
+50Salads is a near-worst case for it. §5 attacks this by removing the
+classifier from the alignment path.
 
 ---
 
-## 6. Reproduction notes
+## 5. Our direction: align *directly*, not *through segmentation*
 
-- **ATBA code is public** → a TA-only or TA+TAS reproduction is realistically
-  "fork ATBA, add a 50Salads config, add DELTA's CTC loss".
-- Reproducing DELTA's TA ≈ reproducing ATBA + aligning over the *full*
-  (observed + future) video + CTC. The DELTA-specific unknowns are all
-  *downstream* of TA (decoder, CRF, loss weights `γ₁γ₂γ₃`, query count `K`,
-  mask width) and need the DELTA supplementary material.
-- Pseudo-label accuracy (`Y*` vs held-out GT frame labels: MoF / MoC / edit /
-  F1@k) is a directly measurable baseline — see `delta.align`.
-- ATBA downsamples Breakfast 10×; decide our temporal resolution before
-  extracting features. Budget for multi-seed runs (WSAS results fluctuate).
+### 5.1 The structural observation
+
+Every transcript-supervised segmenter — ATBA, and the current SOTA **HAL**
+(Huang et al., CVPR 2026) — does **alignment through segmentation**:
+
+```
+frozen I3D → trained frame classifier → posteriors P → (boundary/transition scores) → align → Y*
+```
+
+The alignment can be no better than that trained classifier at separating the
+vocabulary. On 50Salads the classifier is weak by construction (fixed overhead
+camera, near-duplicate fine-grained classes) — Stage 1 measured the I3D
+consecutive-frame distance at only **1.11×** the random-frame level at true
+boundaries, and the naive-uniform floor is already **MoC 0.34**. Notably,
+**neither ATBA nor HAL even reports 50Salads** — the transcript-supervised
+literature mostly avoids it, precisely because "alignment through segmentation"
+struggles there. DELTA is one of the few transcript-only methods that runs on
+50Salads at all.
+
+### 5.2 The alternative
+
+Replace the trained classifier with a **frozen vision-language model** and align
+on its similarity directly:
+
+```
+VLM:  s(n, t) = sim( g_text(action_n) , f_vis(frame_t) )        # transcript × frame
+      → monotonic alignment (order-preserving DTW / OT / DP) on s → Y*
+```
+
+No frame classifier, no cold-start, no 40-epoch warm-up. The alignment is
+anchored in language-grounded visual semantics from step 0, and the fine-grained
+vocabulary (`cut_tomato` vs `cut_cheese`, `add_oil` vs `add_vinegar`) is
+disambiguated by the *noun in the label*, not by a classifier that 50Salads
+makes hard to train.
+
+Components:
+- **`f_vis`** — a video-native VLM tower (VideoLLaMA3 / InternVideo2), not
+  frame-CLIP. CLIP-family frame encoders are known to be weak at fine-grained
+  and temporal distinctions (arXiv 2602.21406 says exactly this); a video
+  encoder with temporal context is the bet, and measuring the gap is a Stage 2
+  experiment.
+- **`g_text`** — the paired text tower; optionally VLM-generated *descriptions*
+  ("pours dark vinegar from a bottle") rather than bare labels.
+- **alignment** — order-preserving OT / soft-DTW with a monotonicity prior
+  (ASOT CVPR'24; Ali et al. ICCV'25), differentiable so the cost can later be
+  fine-tuned.
+- **boundary uncertainty** — emit `P(boundary_r = t)` from the soft alignment
+  and pass the *distribution* into `T*`, `d*`, and the crossmodal mask, instead
+  of one hard label.
+
+### 5.3 What is and isn't novel
+
+| | status |
+|---|---|
+| VLM similarity + monotonic alignment for **step localization / segmentation** | done — StepFormer, VAVA, Drop-DTW, Ali et al. |
+| VLM **per-frame** zero-shot action segmentation (no transcript, no alignment) | done — arXiv 2602.21406 |
+| VLM-direct transcript→frame alignment feeding a **dense long-term anticipation** decoder (alignment error → forecast error) | **open** |
+| **uncertainty-aware** pseudo-boundaries into an anticipation decoder | **open** |
+| the **fixed-camera fine-grained regime (50Salads)** that segmentation-based methods skip | **open** |
+
+Lead the contribution with the last three. "We used a VLM" is not itself a
+contribution.
+
+### 5.4 ATBA / HAL become baselines
+
+The plan is no longer "improve ATBA". It's: build VLM-direct alignment, and
+benchmark `Y*` quality against (a) the naive-uniform floor (MoC 0.34),
+(b) vendored ATBA driven by the same features, (c) optionally HAL, and
+(d) a supervised warm-up classifier as the ceiling. Then feed the best `Y*`
+into the DLTA decoder.
+
+---
+
+## 6. Reproduction / baseline notes
+
+- **ATBA is a baseline now, not the method.** Vendor its public code
+  (`iSEE-Laboratory/CVPR24_ATBA`), add a 50Salads config, drive it with the
+  same frozen features as our VLM-direct aligner, and compare `Y*` quality.
+- **HAL** (CVPR 2026, `arXiv:2602.24275`) — current transcript-supervised
+  segmentation SOTA; purely visual + transcript, no text embeddings; does not
+  report 50Salads. Optional second baseline.
+- Reproducing DELTA's full pipeline ≈ our aligner over the *full* (observed +
+  future) video → `T*` / `d*` → a FUTR-style decoder + CRF + CTC. The
+  DELTA-specific unknowns are all *downstream* of alignment (decoder, CRF, loss
+  weights `γ₁γ₂γ₃`, query count `K`, mask width) and need the DELTA supp.
+- Pseudo-label accuracy (`Y*` vs held-out GT: MoF / MoC / edit / F1@k) is
+  directly measurable — see `delta.align`. Floor: naive-uniform MoC 0.34.
+- Budget for multi-seed runs (weakly-supervised results fluctuate).
 
 ## 7. Open questions for the professor
 
-See `docs/approach.md` §"Questions for our professor" and the expanded list in
-the meeting notes (parameter-free detector vs learned module; align observed
-only vs full video; pseudo-label accuracy as a deliverable; novelty bar for
-OT-based alignment; access to DELTA code + supplementary).
+- Is **VLM-direct alignment** (no trained frame classifier in the alignment
+  path) the intended contribution, or an improvement to DELTA's existing TA?
+- Target metric: `Y*` alignment quality on 50Salads, or downstream DLTA MoC?
+- Is establishing a **50Salads** transcript-only alignment benchmark (which ATBA
+  and HAL skip) itself a contribution?
+- Frozen VLM vs later fine-tuning the alignment cost — how far can we go?
+- Do we need our own DELTA decoder reproduction, or is the professor's group
+  sharing code / the DELTA supplementary?
+
+Plus the earlier list in `docs/approach.md`.
