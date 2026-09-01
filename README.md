@@ -49,11 +49,23 @@ Backbones (`--backbone`): `vl3-siglip` (default), `siglip2`, `dinov2`,
 `i3d-compat` (parity passthrough). Add more in
 [`src/delta/features/backbones.py`](src/delta/features/backbones.py).
 
-## Alignment / segmentation metrics
+## Alignment / segmentation
 
 ```python
-from delta.align import segmentation_report, kendall_tau_alignment
-segmentation_report(pred_frame_labels, gt_frame_labels)   # MoF, MoC, edit, F1@{10,25,50}
+from delta.align import segmentation_report, similarity_matrix, align_dp
+
+s = similarity_matrix(text_emb, frame_emb)          # (N, T) frozen-VLM transcript×frame
+y_star = align_dp(s, transcript).y_star             # order-preserving alignment -> pseudo-labels
+segmentation_report(y_star, gt_frame_labels)        # MoF, MoC, edit, F1@{10,25,50}
+```
+
+```bash
+# baselines on 50Salads (no VLM features yet)
+python -m delta.align.evaluate --config configs/50salads.yaml --provider naive  --split 1
+python -m delta.align.evaluate --config configs/50salads.yaml --provider oracle --split 1   # aligner sanity
+# once VLM features exist:
+python -m delta.align.evaluate --config configs/50salads.yaml --provider vlm --split 1 \
+    --frame-dir data/50salads/features_vl3siglip --class-emb .../action_name_embeddings.npy
 ```
 
 ## Layout
@@ -75,6 +87,6 @@ tests/           CPU-only unit tests  (pytest -q)
 - [x] Alignment / segmentation metrics
 - [x] **Stage 0** — env (`.venv`, py3.11) + 50Salads benchmark bundle downloaded & verified (`dinggd/50salads`, 30 fps)
 - [x] **Stage 1** — 50Salads dataset analysis: `delta.data.stats`, `delta.viz.timeline`, [`notebooks/stage1_dataset_analysis.ipynb`](notebooks/stage1_dataset_analysis.ipynb), [`docs/50salads-notes.md`](docs/50salads-notes.md) *(video-watching skipped — raw `.avi` host is down)*
-- [ ] **Stage 2** — vendor ATBA, drive with zero-shot / warm-up posteriors, measure `Y*` quality on 50Salads
-- [ ] **Stage 3** — minimal FUTR-style DLTA decoder + Obs%/pred% evaluation
-- [ ] (research) multimodal self-supervised alignment objective — `docs/temporal-alignment.md` §5
+- [~] **Stage 2** — VLM-direct alignment (`docs/temporal-alignment.md` §5). Aligner done: `delta.align.{similarity,ta,evaluate}` (order-preserving DP + soft forward-backward), validated on real 50Salads transcripts; ATBA vendored as baseline. **Blocked on raw video** for the VLM similarity matrix.
+- [ ] **Stage 3** — minimal FUTR-style DLTA decoder on the VLM-direct `Y*`
+
