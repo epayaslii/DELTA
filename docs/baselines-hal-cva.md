@@ -1,9 +1,24 @@
-# Baselines: HAL and CVA (CVPR 2026)
-
-Two recent CVPR'26 papers, on **two different axes** of the problem. Neither is
-our contribution; both scope it.
+# Baselines & references: HAL, CVA, MASRA
 
 Legend: **[PAPER]** · **[CODE]** (official repo) · **[INFER]** · **[UNKNOWN]**.
+
+## ⚠️ Scope update — 2026-09-02: HAL → MASRA
+
+Supervisor's direction: **the TA must use a VLM; no segmentation-based approach.**
+Consequences:
+- **HAL is dropped as a workstream.** It is ATBA + a variational regulariser —
+  still "alignment *through* a trained frame classifier". Kept only as a
+  *baseline number* (its paper's Breakfast MoF; it never ran 50Salads).
+- **Eliz → MASRA** (this doc, `masra` section). Co-intern → CVA.
+  Both are **VLM video-text alignment** (from grounding), adapted to
+  transcript-supervised 50Salads.
+- Method: frozen **InternVideo2** transcript×frame similarity → **MASRA-style
+  LRCA/ESTA regularisation** → order-preserving alignment (**ASOT**, already in
+  DELTA as `--model_type wclot`) → `Y*` → DELTA decoder.
+- The "Phase T gate → Phase D" structure and the TA-metrics→DLTA-metrics chain
+  still hold; just the method inside changed (VLM+MASRA instead of HAL).
+
+The HAL analysis below is retained as the record of *why* it was dropped.
 
 ---
 
@@ -119,28 +134,96 @@ population status **[UNKNOWN]**).
 
 ### Ablation (QVHighlights, R1@0.7): baseline 46.77 → +QCD 51.98 → +CTE 52.63 → +CBD 53.02 → all 54.84.
 
-**Role for us:** methodological upper reference + a menu of ingredients (CBD,
-CTE, QCD). Not a benchmark we compete on.
+**Role for us:** the aligner reference (co-intern). CBD + CTE are the
+transferable ingredients.
+
+---
+
+## MASRA — Eliz's focus  (`~/Desktop/MASRA_CVPR.pdf`, arXiv:2605.03398, 2026)
+
+**MLLM-Assisted Semantic-Relational Consistent Alignment for Video Temporal
+Grounding.** Zhang/Ran et al. **ACM-track** (© 2026 ACM; likely ACM MM) — *not*
+CVPR, despite the local filename. **[PAPER]**
+
+- **Task:** video temporal grounding (NL query → one span), **fully supervised**
+  (GT spans). Features: SlowFast + CLIP. Datasets: QVHighlights, Charades-STA,
+  TACoS, ActivityNet.
+- **Contribution = a training-time language regulariser** (not an aligner —
+  structurally like HAL was): an **MLLM** generates event descriptions + clip
+  captions at training; two alignment objectives use them:
+  - **LRCA** — build a *textual relation matrix* from the clip captions and
+    **align it with the video's temporal feature-similarity matrix**. ← the
+    piece closest to "transcript×frame similarity alignment".
+  - **ESTA** — align temporally-pooled context with event/action semantics.
+  - Supporting: DAI (context-aware codebook to absorb query-irrelevant
+    semantics), SGE, SORA (sharpens the similarity map).
+  - **The MLLM is used only at training, discarded at inference** — matches
+    DELTA's philosophy.
+
+**Where it does NOT fit (all adaptable / relaxed):** grounding not TA (single
+query, no ordered sequence, no monotonicity); fully supervised on GT spans; the
+whole "don't align to the background" motivation is moot on 50Salads (no
+background); SlowFast+CLIP not InternVideo2; it regularises a base grounding
+model, doesn't produce the alignment.
+
+**What transfers:** LRCA, ESTA, the "MLLM/language prior at train only" design,
+SORA. Cite MASRA for *"language-derived similarity-matrix alignment, train-time
+regulariser"*; pair with **MLLM4WTAL** (Zhang et al., **CVPR 2025**,
+arXiv:2411.08466) for a CVPR-stamped "MLLM guides a weakly-supervised temporal
+model, discarded at inference" paradigm.
+
+---
+
+## Genuine transcript/sequence → video aligners (the mechanism references)
+
+Not 2025-26, but these are what "TA" actually means (ordered sequence → video):
+- **StepFormer** (CVPR 2023, arXiv:2304.13265) — ordered step slots → video,
+  order-aware alignment loss, self-supervised from subtitles. Closest mechanism.
+- **TAN** (CVPR 2022 Oral, `TengdaHan/TemporalAlignNet`) — sentences → long
+  video, weakly from noisy narration; beats CLIP/MIL-NCE; helps weakly-supervised
+  Breakfast segmentation.
+- **Drop-DTW** (NeurIPS 2021) — the differentiable sequence↔video DTW primitive.
+- **ASOT** — already inside DELTA (`--model_type wclot`, `src/asot.py`).
+
+Also-rans: OVTAS (ICRA 2026, VLM×14 zero-shot action segmentation — "which VLM"
+study); Ali et al. (ICCV 2025, self-supervised video↔video alignment + segmentation,
+OT — *not* VLM); REMAP/REALIGN (2025, partial-GW-OT procedure alignment).
 
 ---
 
 ## Workstream split
 
-- **Eliz → HAL.** Integrate it into DELTA's TA **on 50Salads** and answer the
-  open question: *does HAL's hierarchical-latent + smoothness regulariser help
-  dense long-term anticipation (MoC), not just segmentation (MoF)?* Nobody has
-  tested this. (50Salads-only for now → all via WLTA, no standalone HAL.)
-- **Co-intern → CVA.** The VLM video-text-alignment angle (CBD, CTE, semantic
-  similarity).
-- **Synergy:** HAL contributes structure/regularisation (the `L_s` change-rate
-  penalty, the slow/fast prior); CVA contributes the VLM semantic-matching
-  alignment. The DELTA VLM-direct method can draw from both — e.g. a CVA-style
-  VLM aligner regularised by a HAL-style smoothness term on the soft assignment.
+- **Eliz → MASRA.** Adapt LRCA/ESTA into a training-time regulariser on the
+  InternVideo2 transcript×frame similarity for 50Salads; then order-preserving
+  alignment (ASOT) → `Y*` → DELTA. Plan M1–M7 below.
+- **Co-intern → CVA.** Build the VLM aligner: CTE encoder + CBD boundary loss.
+- **Synergy:** CVA produces the alignment; MASRA (as HAL did on the segmentation
+  side) is an auxiliary training signal that improves it. Both use InternVideo2.
+  Measured on TA metrics, then downstream MoC.
 
-### Eliz's HAL plan — **50Salads only.  Phase T (gate) → Phase D**
+### Eliz's MASRA plan — 50Salads
 
-Decision (2026-09-02): **50Salads only**, and **test HAL's TA part in isolation
-first**; only integrate into DELTA if it beats ATBA's TA part.
+| # | step | needs / output |
+|---|---|---|
+| M1 | get MASRA code + a VTG base model; reproduce on **TACoS** (cooking VTG — no 50S video yet); read LRCA/ESTA/DAI | understanding, no blocker |
+| M2 | add an `internvideo2` `FrameBackbone` to `delta.features.backbones`; build `s (N×T)` for 50Salads | **raw video** |
+| M3 | adapt **LRCA** — align a transcript relation-matrix (order structure / co-occurrence) with the video similarity matrix | language regulariser loss |
+| M4 | adapt **ESTA** — align pooled temporal context with the 17 action-name embeddings | semantic alignment loss |
+| M5 | order-preserving alignment (ASOT / `delta.align.ta`) reads `Y*` off the regularised `s` | `Y*` |
+| M6 | score `Y*` vs ATBA-in-DELTA / ASOT-in-DELTA / naive floor (MoF/MoC/edit/F1@k/boundary offset) | **the TA-metrics gate** |
+| M7 | feed best `Y*` into DELTA's decoder (CTC/CRF/duration unchanged) → Obs%/Pred% MoC | the downstream result |
+
+Baselines: naive-uniform (MoC 0.34) · ATBA-in-DELTA (`--model_type atba`) ·
+ASOT-in-DELTA (`--model_type wclot`) · HAL (paper number, Breakfast, reference only).
+
+### [retained] The dropped HAL plan — record only
+
+*Superseded by the MASRA plan above (supervisor: VLM required, no segmentation).
+Kept for reference — the Phase-T-gate → Phase-D structure and the
+TA-metrics→DLTA-metrics chain carried over to MASRA.*
+
+Original decision (2026-09-02): **50Salads only**, **test HAL's TA part in
+isolation first**; only integrate into DELTA if it beats ATBA's TA part.
 
 "TA part" = transcript + video → dense pseudo-labels `Y*`. For ATBA *and* HAL
 this is: train an encoder → run the boundary-detector + drop-allowed DP → `Y*`.
