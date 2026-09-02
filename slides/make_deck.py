@@ -141,16 +141,16 @@ for i, line in enumerate([
 # ------------------------------------------------------------------ 1. WHERE WE ARE
 bullets("Where we are — one slide", [
     (0, "Goal: transcript-only Dense Long-Term Action Anticipation (DLTA); focus = the "
-        "Temporal Alignment (TA) component, first on 50Salads."),
-    (0, "Direction (per your guidance): a fundamentally different TA — align via a "
-        "vision-language model, not via segmentation the way ATBA does."),
-    (0, "Done: research repo + infrastructure, 50Salads analysis, a VLM-direct aligner "
-        "prototype (21 tests); analysed the DELTA code (received) and the two CVPR'26 "
-        "baselines HAL and CVA."),
-    (0, "Workstream split: Eliz → HAL (integrate + measure on DLTA); co-intern → CVA (the VLM alignment ideas)."),
-    (0, "Key blocker: raw 50Salads video is unavailable (official host down) — needed for VLM features."),
-    (0, "This deck: what's built, what we learned, the phased TA plan, and questions — for your input."),
-], sub="Internship progress review")
+        "Temporal Alignment (TA) component, on 50Salads."),
+    (0, "Direction confirmed (your guidance): the TA must use a VLM, NOT segmentation the way ATBA/HAL do."),
+    (0, "Done: research repo + infrastructure, 50Salads analysis, a VLM-direct aligner prototype "
+        "(21 tests); deep-read of the DELTA code (received); analysed the CVPR'25/26 VLM-alignment "
+        "literature (HAL, CVA, MASRA, TAN, StepFormer, OVTAS, MLLM4WTAL)."),
+    (0, "Workstream split:  Eliz → MASRA  ·  co-intern → CVA.  Both are VLM video-text alignment."),
+    (1, "HAL was analysed then dropped — it is ATBA + a regulariser, still segmentation-based."),
+    (0, "Blocker: raw 50Salads video for VLM feature extraction (official host down)."),
+    (0, "Next: start building MASRA + its VLM tomorrow."),
+], sub="Internship progress review  ·  pivot: HAL → MASRA (VLM required)")
 
 # ------------------------------------------------------------------ 2. PROBLEM RECAP
 bullets("The problem, briefly", [
@@ -165,17 +165,18 @@ bullets("The problem, briefly", [
 
 # ------------------------------------------------------------------ 3. FRAMING
 bullets("The research framing", [
-    (0, "ATBA / HAL — \"alignment THROUGH segmentation\":"),
-    (1, "frozen I3D  →  trained frame classifier  →  posteriors P  →  boundary + transition scores  →  DP  →  Y*"),
-    (1, "the alignment can be no better than that classifier at telling the actions apart."),
-    (0, "On 50Salads that classifier is a near-worst case: fixed overhead camera, near-duplicate "
-        "fine-grained actions (cut_tomato / cut_cheese, add_oil / add_vinegar)."),
-    (0, "Our direction — \"alignment THROUGH semantic matching\" (and CVA proves it works):"),
-    (1, "frozen VLM:  s(n, t) = sim( text(action_n), frame_t )  →  monotonic / OT alignment  →  Y*"),
-    (1, "no frame classifier in the alignment path; the fine-grained vocabulary is disambiguated by "
-        "the noun in the label, from step 0."),
-    (1, "CVA (CVPR'26) does exactly this for video temporal grounding and is SOTA (+5 R@1)."),
-], sub="Two ways to recover temporal structure from a transcript")
+    (0, "ATBA / HAL — \"alignment THROUGH segmentation\"  (ruled out by your no-segmentation guidance):"),
+    (1, "frozen I3D  →  trained frame classifier  →  posteriors P  →  boundary/transition scores  →  DP  →  Y*"),
+    (1, "the alignment can be no better than that classifier — and on 50Salads (fixed camera, "
+        "near-duplicate cut_* / add_* actions) it is a near-worst case."),
+    (0, "Our direction — \"alignment THROUGH semantic matching\":"),
+    (1, "frozen VLM:  s(n, t) = sim( text(action_n), video_t )  →  order-preserving alignment  →  Y*"),
+    (1, "no frame classifier; the fine-grained vocabulary is disambiguated by the noun, from step 0."),
+    (0, "Two CVPR'25/26 papers do exactly this for video temporal grounding, and we adapt them:"),
+    (1, "CVA (CVPR'26) — the aligner: hierarchical encoder + boundary-contrastive loss.  (co-intern)"),
+    (1, "MASRA (2026) — the language regulariser: align a text relation-matrix to the video similarity "
+        "matrix; MLLM used at training only, discarded at inference.  (Eliz)"),
+], sub="the TA must use a VLM  ·  CVA + MASRA as the references")
 
 # ------------------------------------------------------------------ 4. THE REPO
 table_slide("What's built — the repository",
@@ -241,134 +242,137 @@ bullets("Progress 4 — the DELTA code (\"WLTA\")", [
         "matrix for a frozen-VLM similarity; reuse everything downstream. And we can run the real baseline."),
 ], sub="what it is · how it runs · what it means for us")
 
-# ------------------------------------------------------------------ 9. PROGRESS: HAL
-bullets("Progress 5 — HAL (CVPR'26), my focus", [
-    (0, "HAL = Hierarchical Action Learning. Verdict (confirmed from the CVPR PDF): "
-        "HAL is NOT a different TA — it IS ATBA plus a small variational regulariser."),
-    (1, "models/model.py: \"adapted from CVPR24_ATBA\". Boundary detector = byte-for-byte ATBA."),
-    (1, "L_total = L_y^ATBA  −  α·ELBO  +  β·L_s"),
-    (1, "ELBO = VAE reconstruction + KL on a two-scale latent (slow \"action\" z1 / fast \"visual\" z2); "
-        "L_s = a change-rate penalty forcing z1 to evolve slower than z2."),
-    (0, "Gains over ATBA: +2.4 MoF Breakfast, +3.3 Hollywood, +3.0 GTEA — modest, some within std."),
-    (0, "Never evaluated 50Salads (loader rejects it). Reports MoF/IoU only — no edit, F1, boundary metric."),
-    (0, "Open question nobody has answered: does HAL's hierarchy + smoothness help "
-        "dense anticipation (MoC), or only segmentation (MoF)?  ← my workstream."),
-], sub="ATBA + a hierarchy/smoothness prior  ·  same task as us")
+# ------------------------------------------------------------------ 9. LITERATURE
+table_slide("Progress 5 — VLM-alignment literature (analysed)",
+    ["Paper", "Venue", "What it is", "Role for us"],
+    [
+        ["ATBA", "CVPR'24", "the classifier→DP alignment DELTA's TA follows", "the baseline we replace"],
+        ["HAL", "CVPR'26", "= ATBA + a VAE regulariser; +2–3 MoF; segmentation-based; skips 50Salads", "analysed, then DROPPED (no-segmentation)"],
+        ["CVA", "CVPR'26", "VLM video-text alignment for grounding; hierarchical encoder + boundary-contrastive loss; SOTA", "co-intern — the VLM aligner"],
+        ["MASRA", "2026", "MLLM-assisted alignment: align a text relation-matrix to the video similarity matrix; MLLM train-only", "Eliz — the language regulariser"],
+        ["TAN / StepFormer", "CVPR'22/'23", "the genuine transcript/sequence→video aligners (weak/self-sup)", "the alignment mechanism references"],
+    ],
+    sub="no single paper = {weak supervision} × {VLM alignment} × {long-term anticipation}  →  that is the contribution",
+    col_widths=[1.9, 1.0, 6.3, 2.9], font=9.5)
 
-# ------------------------------------------------------------------ 10. CVA
-bullets("Progress 6 — CVA (CVPR'26), the co-intern's focus", [
-    (0, "CVA = Context-aware Video-text Alignment. Task: video temporal grounding "
-        "(NL query → one time span), fully supervised, SlowFast + CLIP features. SOTA on "
-        "QVHighlights / Charades-STA / TACoS (+5 R@1)."),
-    (0, "Different task, but it IS \"align through a VLM, done right\". Three components:"),
-    (1, "QCD — query-aware background-mix augmentation (context robustness)."),
-    (1, "CTE — hierarchical encoder: windowed self-attn + learnable global queries + bidirectional cross-attn."),
-    (1, "CBD loss — boundary-focused contrastive: boundary-frame reps invariant to context, "
-        "contrasted vs adjacent + most-similar background."),
-    (0, "Not a drop-in baseline (wrong task/supervision) — the methodological reference. "
-        "CBD and CTE are directly transferable to our aligned pseudo-boundaries."),
-    (0, "We'd use InternVideo2 (video-native) as the VLM, not CVA's SlowFast + frame-CLIP."),
-], sub="the strongest VLM video-text aligner  ·  adjacent task")
+# ------------------------------------------------------------------ 10. MASRA + CVA
+bullets("Progress 6 — the two VLM-alignment references", [
+    (0, "CVA (CVPR'26) — Context-aware Video-text Alignment.  Task: video temporal grounding "
+        "(query → span), CLIP+SlowFast, SOTA.  Contribution = the aligner:"),
+    (1, "CTE hierarchical encoder (windowed self-attn + learnable queries + bidirectional cross-attn)"),
+    (1, "CBD boundary-contrastive loss + QCD query-aware augmentation."),
+    (0, "MASRA (2026) — MLLM-Assisted Semantic-Relational Consistent Alignment.  Same task, "
+        "CLIP + an MLLM.  Contribution = a training-time language regulariser:"),
+    (1, "LRCA — align a text relation-matrix (from MLLM captions) with the video's similarity matrix"),
+    (1, "ESTA — align pooled temporal context with action/event semantics"),
+    (1, "MLLM used ONLY at training, discarded at inference  (= DELTA's philosophy)."),
+    (0, "Both: grounding, supervised, not procedural — we adapt them to transcript-supervised 50Salads."),
+], sub="CVA = the aligner (co-intern)   ·   MASRA = the language regulariser (Eliz)")
 
-# ------------------------------------------------------------------ 11. THE TWO AXES + SPLIT
-bullets("Scoping — two axes, split between us", [
-    (0, "Axis 1  —  transcript → dense labels  (our task's TA stage):"),
-    (1, "classifier-based alignment:  ATBA (CVPR'24)  →  HAL (CVPR'26)"),
-    (0, "Axis 2  —  NL query → span  (adjacent, supervised):"),
-    (1, "VLM semantic alignment:  CVA (CVPR'26, SOTA)"),
+# ------------------------------------------------------------------ 11. THE SPLIT
+bullets("Scoping — the workstream split", [
+    (0, "Supervisor's direction: the TA must use a VLM; no segmentation-based approach."),
     (0, ""),
-    (0, "Eliz → HAL:  reproduce, understand, integrate into DELTA's TA, measure the effect on DLTA MoC."),
-    (0, "Co-intern → CVA:  the VLM video-text-alignment angle (CBD, CTE, semantic similarity)."),
-    (0, "Both feed the DELTA VLM-direct method: HAL brings structure/smoothness, CVA brings the VLM alignment."),
-], sub="Eliz → HAL   ·   co-intern → CVA")
+    (0, "Co-intern → CVA:  build the VLM aligner — CTE encoder + CBD boundary-contrastive loss."),
+    (0, "Eliz → MASRA:  the training-time language regulariser — LRCA / ESTA — that shapes the "
+        "video↔transcript similarity, then an order-preserving alignment reads Y* off it."),
+    (0, ""),
+    (0, "Structurally: CVA produces the alignment; MASRA (like HAL did on the segmentation side) "
+        "is an auxiliary training signal that improves it — measured on TA metrics, then downstream MoC."),
+    (0, "VLM for both: InternVideo2 (video-native) instead of CVA/MASRA's SlowFast + frame-CLIP."),
+], sub="Eliz → MASRA   ·   co-intern → CVA   ·   both VLM")
 
 # ------------------------------------------------------------------ 12. TAKEAWAYS
 bullets("Key takeaways", [
-    (0, "The bottleneck is \"alignment through segmentation\" — a trained classifier that 50Salads breaks."),
-    (0, "HAL confirms it: the CVPR'26 SOTA is still ATBA-based, +2–3 MoF, never touches 50Salads."),
+    (0, "\"Alignment through segmentation\" (ATBA / HAL) is a trained classifier that 50Salads breaks — "
+        "and the supervisor has ruled it out."),
+    (0, "The move: replace the classifier posteriors with a frozen-VLM transcript×frame similarity, "
+        "then an order-preserving alignment."),
     (0, "DELTA already has optimal-transport alignment (ASOT, --model_type wclot) — the VLM swap is "
-        "≈ one line in the cost matrix; everything downstream (CTC, CRF, LTA decoder, eval) is reused."),
-    (0, "CVA shows VLM video-text alignment + a boundary-contrastive loss is SOTA on the adjacent task."),
-    (0, "Our contribution: bring that into transcript-supervised DLTA, where ATBA/HAL currently win."),
+        "≈ one line in the cost matrix; CTC / CRF / LTA decoder / eval are all reused."),
+    (0, "CVA + MASRA (CVPR'26 / 2026) do VLM video-text alignment for grounding; we adapt them to "
+        "transcript-supervised dense anticipation — which nobody has done."),
+    (0, "HAL analysed and dropped; kept only as a baseline number."),
 ], sub="what the analysis established")
 
 # ------------------------------------------------------------------ 13. BLOCKERS
 table_slide("Blockers & risks",
     ["Item", "Impact", "Mitigation"],
     [
-        ["Raw 50Salads video unavailable", "blocks VLM feature extraction (VLM phases)", "lab copy; HAL + baselines run now on I3D"],
-        ["No local GPU / torch", "no model runs on the Mac", "cluster; one conda env for ATBA / HAL / WLTA"],
-        ["MoF ≠ MoC", "a method can beat ATBA on MoF and not help DELTA's anticipation MoC", "always measure pseudo-label MoC + boundary offset, not just MoF"],
-        ["DELTA / HAL code is research-grade", "reproduction friction (missing script, paths, wandb)", "documented in docs/delta-code.md; map run scripts onto train.py"],
-        ["HAL has no 50Salads config", "can't reproduce a reference number there", "reproduce on Breakfast; add a 50S config as a task (H4)"],
+        ["Raw 50Salads video unavailable", "blocks VLM feature extraction (the core of both tracks)", "chase a lab copy; meanwhile reproduce MASRA/CVA on TACoS (cooking VTG benchmark)"],
+        ["No local GPU / torch", "no model runs on the Mac", "UPC cluster; one conda env"],
+        ["MoF ≠ MoC", "a method can win on segmentation MoF and not help DELTA's anticipation MoC", "always measure pseudo-label MoC + boundary offset, then downstream MoC"],
+        ["DELTA code is research-grade", "reproduction friction (missing script, paths, wandb)", "documented in docs/delta-code.md; map run scripts onto train.py"],
+        ["MASRA/CVA are grounding + supervised", "not a drop-in — architecture + losses must be adapted", "keep only the transferable pieces (LRCA/ESTA; CTE/CBD); wire into DELTA's ASOT + decoder"],
     ],
     sub="known before we commit compute",
-    col_widths=[3.2, 4.6, 4.3], font=11)
+    col_widths=[3.0, 4.3, 4.8], font=10.5)
 
 # ------------------------------------------------------------------ 14. SECTION
 section("How we proceed with the TA", kicker="For discussion")
 
 # ------------------------------------------------------------------ 15. SCOPE
-bullets("Scope — 50Salads only, for now", [
-    (0, "No Breakfast. One dataset, evaluated two ways:"),
-    (1, "TA metrics — is the transcript→frame alignment good?  MoF / MoC / Edit / F1@k / boundary offset on Y* vs GT."),
-    (1, "DLTA metrics — Obs{20,30}% × Pred{10,20,30,50}% MoC (the DELTA anticipation grid)."),
-    (0, "HAL is tested TA-first (Phase T, a gate); DELTA integration only if it beats ATBA's TA."),
-    (0, "Codebases: standalone ATBA + HAL repos for Phase T;  DELTA/WLTA (--model_type atba / wclot) for Phase D."),
-    (0, "Two tracks: HAL (I3D only, runs now) · VLM / InternVideo2 (needs raw video)."),
-    (0, "Baselines: naive 0.34 MoC · ATBA · HAL · ATBA-in-DELTA · ASOT-in-DELTA."),
-], sub="one dataset · TA metrics gate the DLTA metrics")
+bullets("Scope — 50Salads only", [
+    (0, "No Breakfast, no segmentation-based approach, no HAL workstream (kept as a baseline number)."),
+    (0, "One dataset, evaluated two ways — TA metrics gate the DLTA metrics:"),
+    (1, "TA metrics:  MoF / MoC / Edit / F1@{10,25,50} / median per-transition boundary offset — on Y* vs held-out GT."),
+    (1, "DLTA metrics:  Obs{20,30}% × Pred{10,20,30,50}% MoC — the DELTA anticipation grid."),
+    (0, "Method = frozen VLM (InternVideo2) transcript×frame similarity  →  MASRA-style regularisation "
+        "(LRCA/ESTA)  →  order-preserving alignment (ASOT, already in DELTA)  →  Y*  →  DELTA decoder."),
+    (0, "Baselines:  naive-uniform 0.34 MoC  ·  ATBA-in-DELTA (--model_type atba)  ·  ASOT-in-DELTA "
+        "(--model_type wclot)  ·  HAL number (from its paper)."),
+], sub="VLM-only · TA metrics → DLTA metrics · one dataset")
 
-# ------------------------------------------------------------------ 16. ELIZ / HAL PLAN
-table_slide("My workstream — HAL:  Phase T (gate)  →  Phase D",
+# ------------------------------------------------------------------ 16. ELIZ / MASRA PLAN
+table_slide("My workstream — MASRA (M1–M7)",
     ["#", "Step", "Output"],
     [
-        ["T1", "Add a 50Salads config to the ATBA repo + the HAL repo (folder structure, transcripts from GT, splits, widen assert)", "50S runnable in both"],
-        ["T2", "Train ATBA on 50S (≥3 seeds) → extract Y*_ATBA on the held-out split", "TA metrics"],
-        ["T3", "Train HAL on 50S (same seeds) → extract Y*_HAL", "TA metrics"],
-        ["T4", "GATE: score Y*_HAL vs Y*_ATBA vs naive floor — MoF, MoC, Edit, F1@{10,25,50}, median boundary offset", "does HAL's TA beat ATBA's TA?"],
-        ["—", "if the gate fails → stop here.  if it passes ↓", ""],
-        ["D1", "Port HAL's VAE tap + recon/kl/diff losses into DELTA --model_type atba (~70 lines; warm_epc→40)", "DELTA-atba+HAL"],
-        ["D2", "Train DELTA-atba+HAL vs DELTA-atba on 50S → Obs{20,30}% × Pred{10,20,30,50}% MoC; D3 ablate the 3 terms", "does the improved TA improve anticipation?"],
+        ["M1", "Get the MASRA code + a VTG base model; reproduce on TACoS (cooking benchmark — no 50S video needed yet)", "understand LRCA / ESTA / DAI"],
+        ["M2", "Add an internvideo2 backbone to delta.features.backbones; build s(transcript × frame) for 50S", "s (N×T)   [needs raw video]"],
+        ["M3", "Adapt LRCA — align a transcript relation-matrix (order structure) with the video similarity matrix", "language regulariser loss"],
+        ["M4", "Adapt ESTA — align pooled temporal context with the 17 action-name semantics", "semantic alignment loss"],
+        ["M5", "Order-preserving alignment (ASOT / delta.align.ta) reads Y* off the regularised similarity", "Y*"],
+        ["M6", "Score Y* vs ATBA-in-DELTA / ASOT-in-DELTA / naive floor — TA metrics", "does VLM+MASRA beat the baselines?"],
+        ["M7", "Feed best Y* into DELTA's decoder (CTC/CRF/duration unchanged) → Obs%/Pred% MoC", "the downstream result"],
     ],
-    sub="\"TA part\" = encoder → boundary detector + DP → Y*  (detector+DP identical; only the encoder differs).  I3D features only — no raw video.",
-    col_widths=[0.5, 8.4, 3.2], font=9)
+    sub="frozen VLM similarity + MASRA-style language regularisation → alignment → DELTA.  M1 starts tomorrow.",
+    col_widths=[0.5, 8.6, 3.0], font=9)
 
-# ------------------------------------------------------------------ 17. THE VLM METHOD
-bullets("The VLM-direct method — InternVideo2 (V1–V6)", [
-    (0, "s(n,t) = cos( InternVideo2_text(action_n), InternVideo2_video(clip_t) )  — frozen, "
-        "video-native (> CVA's SlowFast + frame-CLIP for fine-grained / temporal). No frame classifier."),
-    (0, "V1  add an internvideo2 backbone to delta.features.backbones   (~40 lines, can do now)"),
-    (0, "V2–V3  extract InternVideo2 video + text features for 50S → build s → diagnostics "
-        "(zero-shot confusion, boundary peakedness vs I3D's 1.11×)   [needs raw video]"),
-    (0, "V4  swap s into DELTA's alignment — wclot cost matrix (train.py:548, ~1 line) or atba BoundaryDetector"),
-    (0, "V5  + CVA's CBD boundary-contrastive loss on the aligned boundaries; + a CTE-style encoder"),
-    (0, "V6  best Y* → DELTA decoder + CRF + duration head (unchanged) → Obs%/Pred% MoC on 50Salads"),
-    (0, "+ from HAL: the L_s smoothness penalty on the soft assignment (if H7 shows it helps)."),
-], sub="frozen InternVideo2 similarity → alignment → DELTA  ·  + CVA (CBD/CTE) + HAL (smoothness)")
+# ------------------------------------------------------------------ 17. THE FULL METHOD
+bullets("The full method — where CVA + MASRA land", [
+    (0, "s(n,t) = cos( InternVideo2_text(action_n), InternVideo2_video(clip_t) )  — frozen, video-native, no classifier."),
+    (0, "+ MASRA (Eliz):  LRCA / ESTA training-time losses that shape s toward the transcript's "
+        "semantic-relational structure; MLLM at train only."),
+    (0, "+ CVA (co-intern):  CTE-style encoder on the VLM features; CBD boundary-contrastive loss on "
+        "the aligned boundary frames."),
+    (0, "Order-preserving alignment on s (ASOT — already in DELTA as --model_type wclot, ~1 line to "
+        "swap the cost matrix)  →  Y*."),
+    (0, "Y*  →  DELTA decoder + CRF + duration head (unchanged)  →  Obs%/Pred% MoC on 50Salads."),
+    (0, "Contribution: VLM-direct transcript→frame alignment for weakly-supervised dense anticipation — unaddressed."),
+], sub="InternVideo2 similarity  +  MASRA regulariser (Eliz)  +  CVA aligner (co-intern)  →  DELTA")
 
 # ------------------------------------------------------------------ 18. SEQUENCING
-table_slide("Sequencing — two tracks, 50Salads only",
-    ["When", "HAL track — Eliz (no raw video)", "VLM track (needs raw video)"],
+table_slide("Sequencing — two VLM tracks, 50Salads",
+    ["When", "Eliz — MASRA", "Co-intern — CVA"],
     [
-        ["Now", "T1: 50Salads config for the ATBA + HAL repos; cluster env", "V1: add the internvideo2 backbone"],
-        ["+1–2 wk", "T2–T3: train ATBA + HAL on 50S (≥3 seeds); extract Y*", "chase raw 50S video from the lab"],
-        ["+2 wk", "T4 — GATE: Y*_ATBA vs Y*_HAL vs naive floor", "—"],
-        ["+3–4 wk", "if gate passes: D1–D2 port HAL into DELTA-atba; Obs%/Pred% MoC", "V2–V3: InternVideo2 extraction; build s; diagnostics"],
-        ["later", "D3–D4: ablate; hand diff_loss to the VLM track", "V4–V6: swap s into DELTA's alignment; + CVA CBD/CTE; MoC"],
+        ["Tomorrow", "M1: get MASRA code; reproduce on TACoS; read LRCA / ESTA / DAI", "get CVA code; reproduce on QVHighlights / TACoS"],
+        ["+1–2 wk", "M2: internvideo2 backbone; chase raw 50S video; build s once available", "isolate CTE + CBD as reusable modules"],
+        ["+2–3 wk", "M3–M4: adapt LRCA / ESTA to the transcript setting", "CTE / CBD on our VLM features (once s exists)"],
+        ["+3–4 wk", "M5–M6: order-preserving alignment; score Y* (TA metrics) vs baselines", "join: CBD on the aligned boundaries"],
+        ["later", "M7: Y* → DELTA decoder → Obs%/Pred% MoC", "ablations; write-up"],
     ],
-    sub="the HAL track has no blocker and starts immediately; Phase T is a gate",
-    col_widths=[1.1, 5.6, 5.4], font=9.5)
+    sub="both blocked on raw 50Salads video for the 50S runs; TACoS reproduction can start now",
+    col_widths=[1.2, 5.7, 5.2], font=9.5)
 
 # ------------------------------------------------------------------ 19. QUESTIONS
 bullets("Questions for you", [
-    (0, "Can the group share raw 50Salads video? (blocks VLM features; official host is down.)"),
-    (0, "HAL workstream: is the goal to integrate it into DELTA (H5–H6), or just a standalone "
-        "reproduction + comparison? Is a negative result (\"doesn't transfer to anticipation\") acceptable?"),
+    (0, "Can the group share raw 50Salads video?  (blocks the VLM feature extraction for both of us.)"),
+    (0, "MASRA uses an MLLM at training to generate captions — for us the transcript is already given. "
+        "Keep the MLLM (to expand labels into descriptions), or drop it and use LRCA/ESTA with the plain labels?"),
     (0, "Primary target metric — alignment Y* quality on 50Salads, or downstream DLTA MoC?"),
-    (0, "Is establishing a 50Salads transcript-only alignment benchmark (ATBA & HAL skip it) a contribution?"),
+    (0, "Is establishing a 50Salads transcript-only alignment benchmark a contribution?"),
     (0, "Frozen VLM only, or is fine-tuning the alignment cost (light adapter) in scope?"),
-    (0, "Preferred VLM backbone — VideoLLaMA3 vision tower, InternVideo2, CLIP, or something the group uses?"),
+    (0, "VLM backbone — InternVideo2, or something the group already uses?"),
     (0, "Do we have the DELTA supplementary material (loss weights, decoder hyperparameters)?"),
 ], sub="to set the next phase")
 
@@ -378,7 +382,7 @@ box = s.shapes.add_textbox(Inches(0.8), Inches(4.6), Inches(11.7), Inches(1.2))
 tf = _tf(box)
 r = tf.paragraphs[0].add_run()
 r.text = ("Docs: temporal-alignment.md · 50salads-notes.md · delta-code.md · "
-          "baselines-hal-cva.md · hal-analysis.md · approach.md")
+          "baselines-hal-cva.md · approach.md")
 r.font.size = Pt(13); r.font.name = FONT; r.font.color.rgb = RGBColor(0xC9, 0xD6, 0xE3)
 
 out = "/Users/elizpayasli/Documents/GitHub/DELTA/slides/DELTA_progress_Mariella.pptx"
