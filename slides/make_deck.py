@@ -310,31 +310,29 @@ section("How we proceed with the TA", kicker="For discussion")
 
 # ------------------------------------------------------------------ 15. SCOPE
 bullets("Scope — 50Salads only, for now", [
-    (0, "All work goes through the DELTA / WLTA code, which runs 50Salads natively "
-        "(-d FS -c 19) with both alignment modes:"),
-    (1, "--model_type atba  = ATBA-in-DELTA   (= our ATBA baseline on 50Salads)"),
-    (1, "--model_type wclot = ASOT-in-DELTA   (optimal transport, already there)"),
-    (0, "No Breakfast, no standalone HAL. HAL test = its losses ported into DELTA's atba path."),
-    (0, "Two tracks:"),
-    (1, "HAL track (Eliz) — I3D features only, no raw video, runs NOW."),
-    (1, "VLM track (InternVideo2) — needs raw 50Salads video (still the blocker)."),
-    (0, "Baselines: naive 0.34 MoC · ATBA-in-DELTA · ASOT-in-DELTA · HAL-in-DELTA."),
-], sub="one dataset · one codebase · two tracks")
+    (0, "No Breakfast. One dataset, evaluated two ways:"),
+    (1, "TA metrics — is the transcript→frame alignment good?  MoF / MoC / Edit / F1@k / boundary offset on Y* vs GT."),
+    (1, "DLTA metrics — Obs{20,30}% × Pred{10,20,30,50}% MoC (the DELTA anticipation grid)."),
+    (0, "HAL is tested TA-first (Phase T, a gate); DELTA integration only if it beats ATBA's TA."),
+    (0, "Codebases: standalone ATBA + HAL repos for Phase T;  DELTA/WLTA (--model_type atba / wclot) for Phase D."),
+    (0, "Two tracks: HAL (I3D only, runs now) · VLM / InternVideo2 (needs raw video)."),
+    (0, "Baselines: naive 0.34 MoC · ATBA · HAL · ATBA-in-DELTA · ASOT-in-DELTA."),
+], sub="one dataset · TA metrics gate the DLTA metrics")
 
 # ------------------------------------------------------------------ 16. ELIZ / HAL PLAN
-table_slide("My workstream — HAL on 50Salads (H1–H7)",
-    ["#", "Step", "Gate / output"],
+table_slide("My workstream — HAL:  Phase T (gate)  →  Phase D",
+    ["#", "Step", "Output"],
     [
-        ["H1", "Cluster env (Py3.9/torch1.11 conda); arrange data/FS/ from the dinggd/50salads bundle", "data ready"],
-        ["H2", "Run WLTA train.py -d FS -c 19 --model_type atba (+ wclot) on 50S, ≥1 split", "baseline: TAS MoF/MoC + Obs%/Pred% MoC"],
-        ["H3", "Instrument the loop: dump tas_pseudolabels; score Y* vs GT with delta.align (MoC, edit, F1@k, boundary offset) vs the naive floor 0.34", "the pseudo-label number HAL must beat"],
-        ["H4", "Port HAL into DELTA --model_type atba: VAE tap (z1 slow / z2 fast) + recon/kl/diff losses in atba_loss.py (~70 lines); warm_epc→40", "DELTA-atba+HAL"],
-        ["H5", "Run DELTA-atba+HAL on 50S → compare Y* quality (vs H3) and Obs%/Pred% MoC (vs H2)", "does HAL's prior transfer to DLTA?"],
-        ["H6", "Ablate: recon-only / kl-only / diff-only / warm_epc", "which term matters"],
-        ["H7", "If diff_loss (smoothness) helps → hand the change-rate penalty to the VLM-aligner track", "shared component"],
+        ["T1", "Add a 50Salads config to the ATBA repo + the HAL repo (folder structure, transcripts from GT, splits, widen assert)", "50S runnable in both"],
+        ["T2", "Train ATBA on 50S (≥3 seeds) → extract Y*_ATBA on the held-out split", "TA metrics"],
+        ["T3", "Train HAL on 50S (same seeds) → extract Y*_HAL", "TA metrics"],
+        ["T4", "GATE: score Y*_HAL vs Y*_ATBA vs naive floor — MoF, MoC, Edit, F1@{10,25,50}, median boundary offset", "does HAL's TA beat ATBA's TA?"],
+        ["—", "if the gate fails → stop here.  if it passes ↓", ""],
+        ["D1", "Port HAL's VAE tap + recon/kl/diff losses into DELTA --model_type atba (~70 lines; warm_epc→40)", "DELTA-atba+HAL"],
+        ["D2", "Train DELTA-atba+HAL vs DELTA-atba on 50S → Obs{20,30}% × Pred{10,20,30,50}% MoC; D3 ablate the 3 terms", "does the improved TA improve anticipation?"],
     ],
-    sub="I3D features only — no raw video needed. Expected magnitude small; a clean negative is still a finding.",
-    col_widths=[0.5, 8.2, 3.4], font=9.5)
+    sub="\"TA part\" = encoder → boundary detector + DP → Y*  (detector+DP identical; only the encoder differs).  I3D features only — no raw video.",
+    col_widths=[0.5, 8.4, 3.2], font=9)
 
 # ------------------------------------------------------------------ 17. THE VLM METHOD
 bullets("The VLM-direct method — InternVideo2 (V1–V6)", [
@@ -353,13 +351,13 @@ bullets("The VLM-direct method — InternVideo2 (V1–V6)", [
 table_slide("Sequencing — two tracks, 50Salads only",
     ["When", "HAL track — Eliz (no raw video)", "VLM track (needs raw video)"],
     [
-        ["Now", "H1–H2: WLTA env; run --model_type atba + wclot on 50S → baseline MoC", "V1: add the internvideo2 backbone"],
-        ["+1–2 wk", "H3: dump pseudo-labels; score Y* vs the naive floor", "chase raw 50S video from the lab"],
-        ["+2–3 wk", "H4–H5: port HAL into DELTA-atba; compare Y* + Obs%/Pred% MoC", "V2–V3: InternVideo2 extraction; build s; diagnostics"],
-        ["+3–4 wk", "H6–H7: ablate; hand diff_loss to the VLM track", "V4: swap s into DELTA's alignment; score Y*"],
-        ["later", "—", "V5–V6: + CVA CBD/CTE; downstream Obs%/Pred% MoC"],
+        ["Now", "T1: 50Salads config for the ATBA + HAL repos; cluster env", "V1: add the internvideo2 backbone"],
+        ["+1–2 wk", "T2–T3: train ATBA + HAL on 50S (≥3 seeds); extract Y*", "chase raw 50S video from the lab"],
+        ["+2 wk", "T4 — GATE: Y*_ATBA vs Y*_HAL vs naive floor", "—"],
+        ["+3–4 wk", "if gate passes: D1–D2 port HAL into DELTA-atba; Obs%/Pred% MoC", "V2–V3: InternVideo2 extraction; build s; diagnostics"],
+        ["later", "D3–D4: ablate; hand diff_loss to the VLM track", "V4–V6: swap s into DELTA's alignment; + CVA CBD/CTE; MoC"],
     ],
-    sub="the HAL track has no blocker and starts immediately",
+    sub="the HAL track has no blocker and starts immediately; Phase T is a gate",
     col_widths=[1.1, 5.6, 5.4], font=9.5)
 
 # ------------------------------------------------------------------ 19. QUESTIONS
