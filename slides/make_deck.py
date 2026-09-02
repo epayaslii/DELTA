@@ -267,6 +267,7 @@ bullets("Progress 6 — CVA (CVPR'26), the co-intern's focus", [
         "contrasted vs adjacent + most-similar background."),
     (0, "Not a drop-in baseline (wrong task/supervision) — the methodological reference. "
         "CBD and CTE are directly transferable to our aligned pseudo-boundaries."),
+    (0, "We'd use InternVideo2 (video-native) as the VLM, not CVA's SlowFast + frame-CLIP."),
 ], sub="the strongest VLM video-text aligner  ·  adjacent task")
 
 # ------------------------------------------------------------------ 11. THE TWO AXES + SPLIT
@@ -307,57 +308,59 @@ table_slide("Blockers & risks",
 # ------------------------------------------------------------------ 14. SECTION
 section("How we proceed with the TA", kicker="For discussion")
 
-# ------------------------------------------------------------------ 15. PHASED TA PLAN
-table_slide("The TA plan — phases (shared)",
-    ["Phase", "Work", "Needs", "Output"],
-    [
-        ["0", "Baselines: DELTA/WLTA --model_type atba + wclot on Breakfast & 50S; extract pseudo-labels; measure boundary quality", "cluster, I3D", "real MoC; the reference table"],
-        ["1", "Frozen VLM frame features + action-name text embeddings for 50S; build s (N×T); diagnostics", "raw video", "s; zero-shot confusion; boundary peakedness"],
-        ["2", "Plug s into DELTA's alignment (wclot cost matrix ~1 line, or atba boundary detector)", "phase 1", "Y* quality vs ATBA / HAL / naive floor"],
-        ["3", "Borrow from CVA: CBD boundary-contrastive loss on aligned boundaries; CTE-style encoder on VLM feats", "phase 2", "which CVA idea helps"],
-        ["4", "Best Y* → DELTA decoder; Obs%/Pred% MoC grid", "phase 3", "the result vs ATBA / HAL / DELTA"],
-    ],
-    sub="phase 0 runs now on I3D; phases 1–4 need raw 50Salads video",
-    col_widths=[0.7, 6.6, 1.9, 3.3], font=10.5)
+# ------------------------------------------------------------------ 15. SCOPE
+bullets("Scope — 50Salads only, for now", [
+    (0, "All work goes through the DELTA / WLTA code, which runs 50Salads natively "
+        "(-d FS -c 19) with both alignment modes:"),
+    (1, "--model_type atba  = ATBA-in-DELTA   (= our ATBA baseline on 50Salads)"),
+    (1, "--model_type wclot = ASOT-in-DELTA   (optimal transport, already there)"),
+    (0, "No Breakfast, no standalone HAL. HAL test = its losses ported into DELTA's atba path."),
+    (0, "Two tracks:"),
+    (1, "HAL track (Eliz) — I3D features only, no raw video, runs NOW."),
+    (1, "VLM track (InternVideo2) — needs raw 50Salads video (still the blocker)."),
+    (0, "Baselines: naive 0.34 MoC · ATBA-in-DELTA · ASOT-in-DELTA · HAL-in-DELTA."),
+], sub="one dataset · one codebase · two tracks")
 
 # ------------------------------------------------------------------ 16. ELIZ / HAL PLAN
-table_slide("My workstream — HAL (H1–H7)",
+table_slide("My workstream — HAL on 50Salads (H1–H7)",
     ["#", "Step", "Gate / output"],
     [
-        ["H1", "Env + Breakfast features; reproduce ATBA split 1", "≈53.9 MoF — pipeline works"],
-        ["H2", "Reproduce HAL split 1 (README command)", "≈56.3 MoF — HAL reproduces"],
-        ["H3", "Dump ATBA pseudo-labels + z1/z2; score Y* with delta.align (MoC, edit, F1@k, boundary offset)", "does HAL give better pseudo-labels, or only better final MoF?"],
-        ["H4", "Get HAL running on 50Salads (add config, splits, transcripts; widen loader assert)", "first HAL 50Salads number"],
-        ["H5", "Port HAL into DELTA — VAE tap + recon/kl/diff losses on --model_type atba (~70 lines)", "DELTA-atba+HAL"],
-        ["H6", "DELTA-atba vs DELTA-atba+HAL on 50S + Breakfast → Obs%/Pred% MoC; ablate the 3 terms", "the result (+ or −)"],
-        ["H7", "If diff_loss (smoothness) helps → hand it to the VLM-aligner workstream", "shared component"],
+        ["H1", "Cluster env (Py3.9/torch1.11 conda); arrange data/FS/ from the dinggd/50salads bundle", "data ready"],
+        ["H2", "Run WLTA train.py -d FS -c 19 --model_type atba (+ wclot) on 50S, ≥1 split", "baseline: TAS MoF/MoC + Obs%/Pred% MoC"],
+        ["H3", "Instrument the loop: dump tas_pseudolabels; score Y* vs GT with delta.align (MoC, edit, F1@k, boundary offset) vs the naive floor 0.34", "the pseudo-label number HAL must beat"],
+        ["H4", "Port HAL into DELTA --model_type atba: VAE tap (z1 slow / z2 fast) + recon/kl/diff losses in atba_loss.py (~70 lines); warm_epc→40", "DELTA-atba+HAL"],
+        ["H5", "Run DELTA-atba+HAL on 50S → compare Y* quality (vs H3) and Obs%/Pred% MoC (vs H2)", "does HAL's prior transfer to DLTA?"],
+        ["H6", "Ablate: recon-only / kl-only / diff-only / warm_epc", "which term matters"],
+        ["H7", "If diff_loss (smoothness) helps → hand the change-rate penalty to the VLM-aligner track", "shared component"],
     ],
-    sub="expected magnitude small — but it's the baseline table, and a clean negative is a real finding",
-    col_widths=[0.6, 8.0, 3.5], font=10)
+    sub="I3D features only — no raw video needed. Expected magnitude small; a clean negative is still a finding.",
+    col_widths=[0.5, 8.2, 3.4], font=9.5)
 
 # ------------------------------------------------------------------ 17. THE VLM METHOD
-bullets("The DELTA VLM-direct method (where both workstreams land)", [
-    (0, "s(n,t) = sim( VLM_text(action_n), VLM_frame_t )  — frozen; no frame classifier in the alignment path."),
-    (0, "Y* = order-preserving DP / optimal-transport alignment on s  (ASOT is already in DELTA)."),
-    (0, "+ from CVA:  a CBD-style boundary-contrastive loss on the aligned boundary frames;  "
-        "a CTE-style windowed + cross-attn encoder on the VLM features."),
-    (0, "+ from HAL:  the L_s change-rate / smoothness penalty on the soft assignment sequence  "
-        "(anti over-segmentation, cheaper than HAL's VAE)."),
-    (0, "Feed Y* into DELTA's decoder + CRF + duration head (unchanged) → Obs%/Pred% MoC."),
-    (0, "Baselines: naive 0.34 · ATBA-in-DELTA · ASOT-in-DELTA · HAL · warm-up-classifier ceiling."),
-], sub="frozen VLM similarity → alignment → DELTA  ·  regularised by CVA + HAL ideas")
+bullets("The VLM-direct method — InternVideo2 (V1–V6)", [
+    (0, "s(n,t) = cos( InternVideo2_text(action_n), InternVideo2_video(clip_t) )  — frozen, "
+        "video-native (> CVA's SlowFast + frame-CLIP for fine-grained / temporal). No frame classifier."),
+    (0, "V1  add an internvideo2 backbone to delta.features.backbones   (~40 lines, can do now)"),
+    (0, "V2–V3  extract InternVideo2 video + text features for 50S → build s → diagnostics "
+        "(zero-shot confusion, boundary peakedness vs I3D's 1.11×)   [needs raw video]"),
+    (0, "V4  swap s into DELTA's alignment — wclot cost matrix (train.py:548, ~1 line) or atba BoundaryDetector"),
+    (0, "V5  + CVA's CBD boundary-contrastive loss on the aligned boundaries; + a CTE-style encoder"),
+    (0, "V6  best Y* → DELTA decoder + CRF + duration head (unchanged) → Obs%/Pred% MoC on 50Salads"),
+    (0, "+ from HAL: the L_s smoothness penalty on the soft assignment (if H7 shows it helps)."),
+], sub="frozen InternVideo2 similarity → alignment → DELTA  ·  + CVA (CBD/CTE) + HAL (smoothness)")
 
 # ------------------------------------------------------------------ 18. SEQUENCING
-table_slide("Sequencing",
-    ["When", "Eliz (HAL)", "Co-intern (CVA)", "Shared"],
+table_slide("Sequencing — two tracks, 50Salads only",
+    ["When", "HAL track — Eliz (no raw video)", "VLM track (needs raw video)"],
     [
-        ["Now", "H1–H2: reproduce ATBA + HAL on Breakfast (cluster)", "read CVA code; reproduce on QVHighlights", "chase raw 50S video"],
-        ["Wk 1–2", "H3–H4: score pseudo-labels; HAL on 50Salads", "isolate CBD + CTE as reusable modules", "phase 0: DELTA/WLTA baselines"],
-        ["Wk 3–4", "H5–H6: HAL in DELTA; MoC ablation", "CBD/CTE on our VLM features (once video)", "phase 1: VLM s for 50S"],
-        ["Wk 4+", "H7: smoothness term → VLM aligner", "CBD/CTE → VLM aligner", "phases 2–4: VLM-direct alignment → DLTA MoC"],
+        ["Now", "H1–H2: WLTA env; run --model_type atba + wclot on 50S → baseline MoC", "V1: add the internvideo2 backbone"],
+        ["+1–2 wk", "H3: dump pseudo-labels; score Y* vs the naive floor", "chase raw 50S video from the lab"],
+        ["+2–3 wk", "H4–H5: port HAL into DELTA-atba; compare Y* + Obs%/Pred% MoC", "V2–V3: InternVideo2 extraction; build s; diagnostics"],
+        ["+3–4 wk", "H6–H7: ablate; hand diff_loss to the VLM track", "V4: swap s into DELTA's alignment; score Y*"],
+        ["later", "—", "V5–V6: + CVA CBD/CTE; downstream Obs%/Pred% MoC"],
     ],
-    sub="two parallel tracks converging on the DELTA VLM-direct method",
-    col_widths=[1.0, 3.9, 3.9, 3.3], font=9.5)
+    sub="the HAL track has no blocker and starts immediately",
+    col_widths=[1.1, 5.6, 5.4], font=9.5)
 
 # ------------------------------------------------------------------ 19. QUESTIONS
 bullets("Questions for you", [

@@ -126,10 +126,10 @@ CTE, QCD). Not a benchmark we compete on.
 
 ## Workstream split
 
-- **Eliz → HAL.** Reproduce it, understand it, integrate it into DELTA's TA,
-  and answer the open question: *does HAL's hierarchical-latent + smoothness
-  regulariser help dense long-term anticipation (MoC), not just segmentation
-  (MoF)?* Nobody has tested this.
+- **Eliz → HAL.** Integrate it into DELTA's TA **on 50Salads** and answer the
+  open question: *does HAL's hierarchical-latent + smoothness regulariser help
+  dense long-term anticipation (MoC), not just segmentation (MoF)?* Nobody has
+  tested this. (50Salads-only for now → all via WLTA, no standalone HAL.)
 - **Co-intern → CVA.** The VLM video-text-alignment angle (CBD, CTE, semantic
   similarity).
 - **Synergy:** HAL contributes structure/regularisation (the `L_s` change-rate
@@ -137,45 +137,66 @@ CTE, QCD). Not a benchmark we compete on.
   alignment. The DELTA VLM-direct method can draw from both — e.g. a CVA-style
   VLM aligner regularised by a HAL-style smoothness term on the soft assignment.
 
-### Eliz's HAL plan (concrete)
+### Eliz's HAL plan — **50Salads only, all via the WLTA code**
+
+Decision (2026-09-02): **focus on 50Salads only for now.** HAL's standalone repo
+asserts against 50Salads and there's no published HAL/ATBA number there, so we
+skip the standalone-HAL / Breakfast detour and work entirely through
+**DELTA/WLTA**, which runs 50Salads natively (`-d FS -c 19`) with both alignment
+modes (`--model_type atba` = ATBA-in-DELTA, `--model_type wclot` = ASOT-in-DELTA).
 
 | # | Step | Where | Output / gate |
 |---|---|---|---|
-| H1 | Env (Py3.9 / torch1.11), download Breakfast features (ATBA Drive), reproduce **ATBA** split 1 → ≈53.9 MoF | cluster | pipeline works |
-| H2 | Reproduce **HAL** split 1 (README cmd) → ≈56.3 MoF | cluster | HAL reproduces |
-| H3 | Instrument the loop: dump per-video ATBA `pseudo_labels`, final segmentation, `z_1/z_2`. Score `Y*` with `delta.align` (MoC, edit, F1@{10,25,50}, boundary offset) — HAL vs ATBA vs naive | Mac | **does HAL give better pseudo-labels, or only better final MoF?** |
-| H4 | Get **HAL running on 50Salads** — add `data/50salads` config, splits, `transcripts/`, widen the loader assert (vestigial 50S branches already in `model.py`/`loss.py`). First HAL 50Salads number ever | cluster | HAL-50S MoF/MoC |
-| H5 | **Port HAL into DELTA** — VAE tap on DELTA's `--model_type atba` encoder + `recon`/`kl`/`diff` losses in `atba_loss.py` (~70 lines; insertion documented in `delta-code.md`). Raise `warm_epc`→~40 | code | DELTA-atba+HAL |
-| H6 | Run DELTA-atba vs DELTA-atba+HAL on 50S + Breakfast → **Obs%/Pred% MoC**. Ablate: recon-only / kl-only / diff-only / warm_epc | cluster | the result (+ or −) |
-| H7 | If `diff_loss` (smoothness) helps: hand it to the VLM aligner workstream | — | shared component |
+| H1 | Cluster env (Py3.9 / torch1.11, conda); arrange `data/FS/` from the `dinggd/50salads` bundle (+ `mappingeval.txt` for `-d FSeval`) | cluster | data ready |
+| H2 | Run WLTA `src/train.py -d FS -c 19 … --model_type atba` (and `--model_type wclot`) on 50S, ≥1 split. Map the run-script flags onto `train.py` (the scripts' `train_edit_elena9sept.py` is missing) | cluster | **baseline** — TAS MoF/MoC + Obs%/Pred% MoC grid |
+| H3 | Instrument `training_step` to dump `tas_pseudolabels` per video → score `Y*` vs held-out GT with `delta.align` (MoC, edit, F1@{10,25,50}, median per-transition boundary offset) — vs the naive-uniform floor (MoC 0.34) | Mac | the pseudo-label number HAL must beat |
+| H4 | **Port HAL into DELTA** `--model_type atba`: VAE tap on 2 adjacent encoder layers → `z_1`(slow)/`z_2`(fast); `recon`/`kl`/`diff` losses in `atba_loss.py::LossFn` (~70 lines; insertion documented in `delta-code.md`). Raise `warm_epc`→~40; add `--z_layer --rec_weight --kl_weight --diff_weight` | code | `DELTA-atba+HAL` |
+| H5 | Run `DELTA-atba+HAL` on 50S → compare (a) `Y*` quality vs H3, (b) **Obs%/Pred% MoC** vs H2 | cluster | **does HAL's hierarchy/smoothness prior transfer to DLTA?** |
+| H6 | Ablate: recon-only / kl-only / diff-only / `warm_epc` sweep | cluster | which term matters |
+| H7 | If `diff_loss` (smoothness) helps: hand the change-rate penalty to the VLM-aligner track (regularise the soft assignment) | — | shared component |
 
-Expected magnitude is small (HAL is +2–3 MoF on *segmentation*; DLTA MoC effect
-unknown, possibly ~0). That is fine: (a) it's the baseline table for the joint
-paper, (b) `diff_loss` may transfer to the VLM aligner, (c) a clean negative
-("hierarchy priors that help segmentation don't transfer to transcript-only
-anticipation") is a real finding.
+Optional, off the critical path: one throwaway standalone-HAL run on Breakfast
+split 1 (~1 day) just to confirm the HAL repo behaves as published.
+
+Expected magnitude is small (HAL is +2–3 MoF on *segmentation*; the DLTA MoC
+effect is unknown, possibly ~0). That is fine: (a) it's the baseline table for
+the joint paper, (b) `diff_loss` may transfer to the VLM aligner, (c) a clean
+negative ("hierarchy priors that help segmentation don't transfer to
+transcript-only anticipation") is a real finding.
+
+### The VLM track — 50Salads only
+
+`s(n,t) = cos( VLM_text(action_n), VLM_video(clip_t) )` with **InternVideo2**
+(`OpenGVLab/InternVideo2`, video-native, shared video-text space — better than
+CVA's SlowFast+frame-CLIP for fine-grained/temporal).
+
+| # | Step | Needs |
+|---|---|---|
+| V1 | Add an `internvideo2` `FrameBackbone` to `delta.features.backbones` (~40 lines) | — |
+| V2 | Extract InternVideo2 video + action-name text features for 50Salads | **raw video** |
+| V3 | Build `s (N×T)`; diagnostics — zero-shot argmax confusion vs GT, boundary peakedness (vs I3D's 1.11×) | V2 |
+| V4 | Swap `s` into DELTA's alignment — `wclot` cost matrix (`train.py:548`, ~1 line) or `atba` `BoundaryDetector`. Score `Y*` vs ATBA-in-DELTA / ASOT-in-DELTA / HAL / naive | V3 |
+| V5 | + CVA's **CBD** boundary-contrastive loss on the aligned boundaries; + a **CTE**-style encoder on the InternVideo2 features | V4 |
+| V6 | Best `Y*` → DELTA decoder → **Obs%/Pred% MoC** on 50Salads | V5 |
+
+**Cheap de-risk:** with even 3–5 raw `.avi`, run V2–V3 on those and check the
+diagnostics before committing to full extraction.
 
 ## Scoped research statement
 
-Bring **CVA-style VLM alignment** — semantic video-text similarity, a
-boundary-contrastive objective, context-robust hierarchical encoding — into the
-**transcript-supervised dense long-term anticipation** setting, where **ATBA and
-HAL** currently win with classifier-based alignment. VLM-direct transcript→frame
-alignment for DLTA is unaddressed.
+**50Salads only, for now.** Bring **CVA-style VLM alignment** — semantic
+video-text similarity, a boundary-contrastive objective, context-robust
+hierarchical encoding — into the **transcript-supervised dense long-term
+anticipation** setting, where **ATBA and HAL** win with classifier-based
+alignment. VLM-direct transcript→frame alignment for DLTA is unaddressed.
 
-Baselines: naive-uniform (floor) · ATBA-in-DELTA (`--model_type atba`) ·
-ASOT-in-DELTA (`--model_type wclot`) · HAL (segmentation, Breakfast) ·
-optionally HAL-losses-in-DELTA. Reference: CVA numbers on VTG (not compared
-directly).
+**Baselines (all on 50Salads, via WLTA):** naive-uniform (floor, MoC 0.34) ·
+**ATBA-in-DELTA** (`--model_type atba`) · **ASOT-in-DELTA** (`--model_type
+wclot`) · **HAL-losses-in-DELTA** (H4–H6). Reference (not compared directly):
+CVA on VTG.
 
-## How to proceed with the TA
-
-| Phase | Work | Needs | Output |
-|---|---|---|---|
-| **0** | DELTA/WLTA `atba` + `wclot` on Breakfast + 50S; (opt) standalone HAL on Breakfast | cluster | real MoC baselines; pseudo-label dumps |
-| **1** | frozen VLM frame feats + action-name text embeds for 50S; build `s (N×T)`; diagnostics | raw video | `s`; zero-shot confusion; boundary peakedness |
-| **2** | plug `s` into DELTA's alignment — `wclot` cost matrix (`train.py:548`) or `atba` `BoundaryDetector` | phase 1 | `Y*` quality vs ATBA / HAL / naive |
-| **3** | borrow from CVA: CBD-style boundary contrastive loss on aligned boundaries; CTE-style encoder on VLM feats; QCD-style background robustness | phase 2 | ablation: which CVA idea helps |
-| **4** | best `Y*` → DELTA decoder; Obs%/Pred% MoC | phase 3 | the result vs ATBA / HAL / DELTA |
-
-Phase 0 runs now (I3D, cluster); phases 1–4 need raw 50Salads video.
+**Ordering:** the **HAL track (H1–H7)** runs now — I3D features, cluster, no raw
+video. The **VLM track (V1–V6)** starts when raw 50Salads video arrives (V1 —
+adding the InternVideo2 backbone — can be done now). The two converge on the
+DELTA VLM-direct method, regularised by `diff_loss` (from HAL) and CBD/CTE
+(from CVA).
