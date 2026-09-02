@@ -217,11 +217,25 @@ Components:
 - **`g_text`** — the paired text tower; optionally VLM-generated *descriptions*
   ("pours dark vinegar from a bottle") rather than bare labels.
 - **alignment** — order-preserving OT / soft-DTW with a monotonicity prior
-  (ASOT CVPR'24; Ali et al. ICCV'25), differentiable so the cost can later be
-  fine-tuned.
+  (ASOT CVPR'24 — *already in DELTA as `--model_type wclot`*, `src/asot.py`;
+  Ali et al. ICCV'25), differentiable so the cost can later be fine-tuned.
 - **boundary uncertainty** — emit `P(boundary_r = t)` from the soft alignment
   and pass the *distribution* into `T*`, `d*`, and the crossmodal mask, instead
   of one hard label.
+- **boundary-contrastive loss** — a CBD-style objective (CVA, CVPR'26): the
+  aligned boundary frames' representations should be invariant to surrounding
+  context and distinct from adjacent + look-alike non-boundary frames. Fights
+  over-segmentation and fixed-camera ambiguity; no GT spans needed. See
+  [`baselines-hal-cva.md`](baselines-hal-cva.md).
+- **encoder** — a CTE-style hierarchical encoder (windowed self-attn + learnable
+  global queries + bidirectional cross-attn) on the frozen VLM features, instead
+  of DELTA's pyramid-local-attention.
+
+**CVA** (Context-aware Video-text Alignment, CVPR'26) is this approach done well
+for the adjacent task of video temporal grounding (query→span, supervised): CLIP
+video-text similarity + the CBD boundary-contrastive loss + the CTE encoder,
+SOTA on QVHighlights/Charades/TACoS. It is the methodological reference; we adapt
+its ingredients to the transcript-supervised DLTA setting.
 
 ### 5.3 What is and isn't novel
 
@@ -236,13 +250,17 @@ Components:
 Lead the contribution with the last three. "We used a VLM" is not itself a
 contribution.
 
-### 5.4 ATBA / HAL become baselines
+### 5.4 ATBA / HAL become baselines; CVA is the reference
 
 The plan is no longer "improve ATBA". It's: build VLM-direct alignment, and
 benchmark `Y*` quality against (a) the naive-uniform floor (MoC 0.34),
-(b) vendored ATBA driven by the same features, (c) optionally HAL, and
-(d) a supervised warm-up classifier as the ceiling. Then feed the best `Y*`
-into the DLTA decoder.
+(b) **ATBA-in-DELTA** (`--model_type atba`) and **ASOT-in-DELTA**
+(`--model_type wclot`) on the same features, (c) optionally **HAL**
+(= ATBA + a VAE regulariser; segmentation SOTA, but never 50Salads —
+[`baselines-hal-cva.md`](baselines-hal-cva.md)), (d) a supervised warm-up
+classifier as the ceiling. **CVA** (CVPR'26) is the methodological reference for
+what VLM alignment achieves, and a source of transferable pieces (CBD loss, CTE
+encoder). Then feed the best `Y*` into the DLTA decoder.
 
 ---
 
