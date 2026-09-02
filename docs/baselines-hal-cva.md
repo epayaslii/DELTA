@@ -124,6 +124,37 @@ CTE, QCD). Not a benchmark we compete on.
 
 ---
 
+## Workstream split
+
+- **Eliz → HAL.** Reproduce it, understand it, integrate it into DELTA's TA,
+  and answer the open question: *does HAL's hierarchical-latent + smoothness
+  regulariser help dense long-term anticipation (MoC), not just segmentation
+  (MoF)?* Nobody has tested this.
+- **Co-intern → CVA.** The VLM video-text-alignment angle (CBD, CTE, semantic
+  similarity).
+- **Synergy:** HAL contributes structure/regularisation (the `L_s` change-rate
+  penalty, the slow/fast prior); CVA contributes the VLM semantic-matching
+  alignment. The DELTA VLM-direct method can draw from both — e.g. a CVA-style
+  VLM aligner regularised by a HAL-style smoothness term on the soft assignment.
+
+### Eliz's HAL plan (concrete)
+
+| # | Step | Where | Output / gate |
+|---|---|---|---|
+| H1 | Env (Py3.9 / torch1.11), download Breakfast features (ATBA Drive), reproduce **ATBA** split 1 → ≈53.9 MoF | cluster | pipeline works |
+| H2 | Reproduce **HAL** split 1 (README cmd) → ≈56.3 MoF | cluster | HAL reproduces |
+| H3 | Instrument the loop: dump per-video ATBA `pseudo_labels`, final segmentation, `z_1/z_2`. Score `Y*` with `delta.align` (MoC, edit, F1@{10,25,50}, boundary offset) — HAL vs ATBA vs naive | Mac | **does HAL give better pseudo-labels, or only better final MoF?** |
+| H4 | Get **HAL running on 50Salads** — add `data/50salads` config, splits, `transcripts/`, widen the loader assert (vestigial 50S branches already in `model.py`/`loss.py`). First HAL 50Salads number ever | cluster | HAL-50S MoF/MoC |
+| H5 | **Port HAL into DELTA** — VAE tap on DELTA's `--model_type atba` encoder + `recon`/`kl`/`diff` losses in `atba_loss.py` (~70 lines; insertion documented in `delta-code.md`). Raise `warm_epc`→~40 | code | DELTA-atba+HAL |
+| H6 | Run DELTA-atba vs DELTA-atba+HAL on 50S + Breakfast → **Obs%/Pred% MoC**. Ablate: recon-only / kl-only / diff-only / warm_epc | cluster | the result (+ or −) |
+| H7 | If `diff_loss` (smoothness) helps: hand it to the VLM aligner workstream | — | shared component |
+
+Expected magnitude is small (HAL is +2–3 MoF on *segmentation*; DLTA MoC effect
+unknown, possibly ~0). That is fine: (a) it's the baseline table for the joint
+paper, (b) `diff_loss` may transfer to the VLM aligner, (c) a clean negative
+("hierarchy priors that help segmentation don't transfer to transcript-only
+anticipation") is a real finding.
+
 ## Scoped research statement
 
 Bring **CVA-style VLM alignment** — semantic video-text similarity, a

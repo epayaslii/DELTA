@@ -140,15 +140,16 @@ for i, line in enumerate([
 
 # ------------------------------------------------------------------ 1. WHERE WE ARE
 bullets("Where we are — one slide", [
-    (0, "Goal: transcript-only Dense Long-Term Action Anticipation (DLTA); my focus is the "
+    (0, "Goal: transcript-only Dense Long-Term Action Anticipation (DLTA); focus = the "
         "Temporal Alignment (TA) component, first on 50Salads."),
-    (0, "Direction (per your guidance): investigate a fundamentally different TA — "
-        "align via a vision-language model, not via segmentation the way ATBA does."),
-    (0, "Done so far:"),
-    (1, "Research repo + infrastructure, dataset analysis, a first VLM-direct aligner prototype (21 tests)."),
-    (1, "Analysed the DELTA code (received) and HAL (the recent CVPR baseline)."),
-    (0, "Key blocker: raw 50Salads video is unavailable (official host is down) — needed for VLM features."),
-    (0, "This deck: what's built, what we learned, and 5 concrete ways to proceed — for your input."),
+    (0, "Direction (per your guidance): a fundamentally different TA — align via a "
+        "vision-language model, not via segmentation the way ATBA does."),
+    (0, "Done: research repo + infrastructure, 50Salads analysis, a VLM-direct aligner "
+        "prototype (21 tests); analysed the DELTA code (received) and the two CVPR'26 "
+        "baselines HAL and CVA."),
+    (0, "Workstream split: Eliz → HAL (integrate + measure on DLTA); co-intern → CVA (the VLM alignment ideas)."),
+    (0, "Key blocker: raw 50Salads video is unavailable (official host down) — needed for VLM features."),
+    (0, "This deck: what's built, what we learned, the phased TA plan, and questions — for your input."),
 ], sub="Internship progress review")
 
 # ------------------------------------------------------------------ 2. PROBLEM RECAP
@@ -169,10 +170,11 @@ bullets("The research framing", [
     (1, "the alignment can be no better than that classifier at telling the actions apart."),
     (0, "On 50Salads that classifier is a near-worst case: fixed overhead camera, near-duplicate "
         "fine-grained actions (cut_tomato / cut_cheese, add_oil / add_vinegar)."),
-    (0, "Our direction — \"alignment THROUGH semantic matching\":"),
+    (0, "Our direction — \"alignment THROUGH semantic matching\" (and CVA proves it works):"),
     (1, "frozen VLM:  s(n, t) = sim( text(action_n), frame_t )  →  monotonic / OT alignment  →  Y*"),
     (1, "no frame classifier in the alignment path; the fine-grained vocabulary is disambiguated by "
         "the noun in the label, from step 0."),
+    (1, "CVA (CVPR'26) does exactly this for video temporal grounding and is SOTA (+5 R@1)."),
 ], sub="Two ways to recover temporal structure from a transcript")
 
 # ------------------------------------------------------------------ 4. THE REPO
@@ -183,10 +185,10 @@ table_slide("What's built — the repository",
         ["delta.features", "Frozen VLM feature extraction — VideoLLaMA3 / SigLIP2 / DINOv2 backbones, text encoder, extraction CLI", "done (untested on video)"],
         ["delta.align", "similarity matrix · order-preserving DP + soft alignment · segmentation/alignment metrics", "done + tests"],
         ["delta.viz", "segmentation-timeline plotting (GT vs pseudo-labels vs prediction)", "done"],
-        ["docs/", "TA reference (ATBA-grounded) · 50Salads analysis · DELTA-code analysis · approach + lit review", "6 documents"],
+        ["docs/", "TA reference · 50Salads analysis · DELTA-code deep-read (loss assembly, VLM plug-in points) · HAL & CVA baselines · approach + lit review", "8 documents"],
         ["tests/", "CPU-only unit tests — synthetic + real-transcript validation", "21 passing"],
     ],
-    sub="github.com/epayaslii/DELTA  ·  7 commits  ·  Python 3.11 / uv",
+    sub="github.com/epayaslii/DELTA  ·  Python 3.11 / uv",
     col_widths=[2.1, 8.0, 2.0], font=11)
 
 # ------------------------------------------------------------------ 5. PROGRESS: INFRA + DATA
@@ -240,119 +242,132 @@ bullets("Progress 4 — the DELTA code (\"WLTA\")", [
 ], sub="what it is · how it runs · what it means for us")
 
 # ------------------------------------------------------------------ 9. PROGRESS: HAL
-bullets("Progress 5 — HAL analysis (the recent CVPR baseline)", [
-    (0, "HAL = Hierarchical Action Learning, CVPR 2026. Verdict: HAL is NOT a different TA — "
-        "it IS ATBA plus a small variational regulariser."),
-    (1, "models/model.py: \"adapted from CVPR24_ATBA\". The boundary detector is byte-for-byte ATBA."),
-    (1, "HAL adds a two-scale VAE branch (slow/fast latents) + 3 aux losses at weights 0.1 / 1e-3 / 1e-3."),
-    (0, "Gains over ATBA: +2.4 MoF Breakfast, +3.3 Hollywood, +3.0 GTEA — modest, some within noise."),
-    (0, "HAL never evaluated 50Salads; its data loader rejects it. Exposes no boundary/alignment output."),
-    (0, "It still aligns THROUGH the frame classifier → does not advance the VLM direction."),
-    (0, "Use HAL as: baseline #2 (ATBA = #1, naive = floor) — a cheap ablation, not a research thrust."),
-], sub="ATBA + hierarchy prior  ·  strong baseline, not a TA replacement")
+bullets("Progress 5 — HAL (CVPR'26), my focus", [
+    (0, "HAL = Hierarchical Action Learning. Verdict (confirmed from the CVPR PDF): "
+        "HAL is NOT a different TA — it IS ATBA plus a small variational regulariser."),
+    (1, "models/model.py: \"adapted from CVPR24_ATBA\". Boundary detector = byte-for-byte ATBA."),
+    (1, "L_total = L_y^ATBA  −  α·ELBO  +  β·L_s"),
+    (1, "ELBO = VAE reconstruction + KL on a two-scale latent (slow \"action\" z1 / fast \"visual\" z2); "
+        "L_s = a change-rate penalty forcing z1 to evolve slower than z2."),
+    (0, "Gains over ATBA: +2.4 MoF Breakfast, +3.3 Hollywood, +3.0 GTEA — modest, some within std."),
+    (0, "Never evaluated 50Salads (loader rejects it). Reports MoF/IoU only — no edit, F1, boundary metric."),
+    (0, "Open question nobody has answered: does HAL's hierarchy + smoothness help "
+        "dense anticipation (MoC), or only segmentation (MoF)?  ← my workstream."),
+], sub="ATBA + a hierarchy/smoothness prior  ·  same task as us")
 
-# ------------------------------------------------------------------ 10. TAKEAWAYS
+# ------------------------------------------------------------------ 10. CVA
+bullets("Progress 6 — CVA (CVPR'26), the co-intern's focus", [
+    (0, "CVA = Context-aware Video-text Alignment. Task: video temporal grounding "
+        "(NL query → one time span), fully supervised, SlowFast + CLIP features. SOTA on "
+        "QVHighlights / Charades-STA / TACoS (+5 R@1)."),
+    (0, "Different task, but it IS \"align through a VLM, done right\". Three components:"),
+    (1, "QCD — query-aware background-mix augmentation (context robustness)."),
+    (1, "CTE — hierarchical encoder: windowed self-attn + learnable global queries + bidirectional cross-attn."),
+    (1, "CBD loss — boundary-focused contrastive: boundary-frame reps invariant to context, "
+        "contrasted vs adjacent + most-similar background."),
+    (0, "Not a drop-in baseline (wrong task/supervision) — the methodological reference. "
+        "CBD and CTE are directly transferable to our aligned pseudo-boundaries."),
+], sub="the strongest VLM video-text aligner  ·  adjacent task")
+
+# ------------------------------------------------------------------ 11. THE TWO AXES + SPLIT
+bullets("Scoping — two axes, split between us", [
+    (0, "Axis 1  —  transcript → dense labels  (our task's TA stage):"),
+    (1, "classifier-based alignment:  ATBA (CVPR'24)  →  HAL (CVPR'26)"),
+    (0, "Axis 2  —  NL query → span  (adjacent, supervised):"),
+    (1, "VLM semantic alignment:  CVA (CVPR'26, SOTA)"),
+    (0, ""),
+    (0, "Eliz → HAL:  reproduce, understand, integrate into DELTA's TA, measure the effect on DLTA MoC."),
+    (0, "Co-intern → CVA:  the VLM video-text-alignment angle (CBD, CTE, semantic similarity)."),
+    (0, "Both feed the DELTA VLM-direct method: HAL brings structure/smoothness, CVA brings the VLM alignment."),
+], sub="Eliz → HAL   ·   co-intern → CVA")
+
+# ------------------------------------------------------------------ 12. TAKEAWAYS
 bullets("Key takeaways", [
     (0, "The bottleneck is \"alignment through segmentation\" — a trained classifier that 50Salads breaks."),
-    (0, "HAL confirms the framing: the SOTA WSAS method is still ATBA-based, +2–3 MoF, skips 50Salads."),
-    (0, "DELTA already has optimal-transport alignment (ASOT) — our monotonic/OT aligner is partly there."),
-    (0, "So the VLM contribution is well-scoped: replace the posteriors feeding the aligner with a "
-        "frozen-VLM transcript×frame similarity; everything downstream is reused."),
-    (0, "Independent mini-contribution available: a boundary-localisation benchmark on 50Salads "
-        "(which ATBA and HAL both skip)."),
+    (0, "HAL confirms it: the CVPR'26 SOTA is still ATBA-based, +2–3 MoF, never touches 50Salads."),
+    (0, "DELTA already has optimal-transport alignment (ASOT, --model_type wclot) — the VLM swap is "
+        "≈ one line in the cost matrix; everything downstream (CTC, CRF, LTA decoder, eval) is reused."),
+    (0, "CVA shows VLM video-text alignment + a boundary-contrastive loss is SOTA on the adjacent task."),
+    (0, "Our contribution: bring that into transcript-supervised DLTA, where ATBA/HAL currently win."),
 ], sub="what the analysis established")
 
-# ------------------------------------------------------------------ 11. BLOCKERS
+# ------------------------------------------------------------------ 13. BLOCKERS
 table_slide("Blockers & risks",
     ["Item", "Impact", "Mitigation"],
     [
-        ["Raw 50Salads video unavailable", "blocks VLM feature extraction (Stage 2b onward)", "lab copy; or start on Breakfast; or I3D-only baselines now"],
-        ["No local GPU / torch", "no model runs on the Mac", "cluster; conda env shared with ATBA/HAL/WLTA"],
-        ["MoF ≠ MoC", "a method can beat ATBA on MoF and not help DELTA's MoC / pseudo-transcripts", "always measure pseudo-label MoC + boundary offset, not just MoF"],
-        ["DELTA code is research-grade", "reproduction friction (missing script, paths, wandb)", "documented; map run scripts onto train.py"],
-        ["VLM fine-grained weakness", "frame-CLIP struggles on cut_* / add_* classes", "video-native VLM (VideoLLaMA3 / InternVideo2); measure zero-shot confusion first"],
+        ["Raw 50Salads video unavailable", "blocks VLM feature extraction (VLM phases)", "lab copy; HAL + baselines run now on I3D"],
+        ["No local GPU / torch", "no model runs on the Mac", "cluster; one conda env for ATBA / HAL / WLTA"],
+        ["MoF ≠ MoC", "a method can beat ATBA on MoF and not help DELTA's anticipation MoC", "always measure pseudo-label MoC + boundary offset, not just MoF"],
+        ["DELTA / HAL code is research-grade", "reproduction friction (missing script, paths, wandb)", "documented in docs/delta-code.md; map run scripts onto train.py"],
+        ["HAL has no 50Salads config", "can't reproduce a reference number there", "reproduce on Breakfast; add a 50S config as a task (H4)"],
     ],
     sub="known before we commit compute",
     col_widths=[3.2, 4.6, 4.3], font=11)
 
-# ------------------------------------------------------------------ 12. WAYS FORWARD (SECTION)
-section("Five ways we can progress", kicker="For discussion")
+# ------------------------------------------------------------------ 14. SECTION
+section("How we proceed with the TA", kicker="For discussion")
 
-# ------------------------------------------------------------------ 13. PATHS OVERVIEW
-table_slide("Ways forward — overview",
-    ["Path", "What", "Needs", "Risk / cost"],
+# ------------------------------------------------------------------ 15. PHASED TA PLAN
+table_slide("The TA plan — phases (shared)",
+    ["Phase", "Work", "Needs", "Output"],
     [
-        ["A", "Reproduce baselines: ATBA + DELTA(WLTA) on Breakfast & 50S; extract pseudo-labels; measure boundary quality", "cluster; features", "low — needed anyway"],
-        ["B", "HAL ablation: add HAL's 3 losses to DELTA, one training run, check MoC / pseudo-label quality", "Path A first", "low; bounded"],
-        ["C", "VLM-direct alignment (the contribution): frozen VLM similarity → monotonic/OT → Y* → DELTA decoder", "raw video; cluster", "medium — the research"],
-        ["D", "VLM zero-shot / pseudo-annotator: video-LLM scores clips vs transcript vocabulary; auxiliary signal", "raw video (few clips)", "low–medium; exploratory"],
-        ["E", "50Salads boundary-localisation benchmark (ATBA & HAL both skip it) — standalone contribution", "50S GT (have it)", "low; publishable in itself"],
+        ["0", "Baselines: DELTA/WLTA --model_type atba + wclot on Breakfast & 50S; extract pseudo-labels; measure boundary quality", "cluster, I3D", "real MoC; the reference table"],
+        ["1", "Frozen VLM frame features + action-name text embeddings for 50S; build s (N×T); diagnostics", "raw video", "s; zero-shot confusion; boundary peakedness"],
+        ["2", "Plug s into DELTA's alignment (wclot cost matrix ~1 line, or atba boundary detector)", "phase 1", "Y* quality vs ATBA / HAL / naive floor"],
+        ["3", "Borrow from CVA: CBD boundary-contrastive loss on aligned boundaries; CTE-style encoder on VLM feats", "phase 2", "which CVA idea helps"],
+        ["4", "Best Y* → DELTA decoder; Obs%/Pred% MoC grid", "phase 3", "the result vs ATBA / HAL / DELTA"],
     ],
-    sub="not mutually exclusive — the question is ordering",
-    col_widths=[0.6, 6.3, 2.4, 2.8], font=10.5)
+    sub="phase 0 runs now on I3D; phases 1–4 need raw 50Salads video",
+    col_widths=[0.7, 6.6, 1.9, 3.3], font=10.5)
 
-# ------------------------------------------------------------------ 14. PATH A / B DETAIL
-bullets("Paths A & B — establish the ground truth first", [
-    (0, "A — Baselines (cluster, ~1–2 weeks):"),
-    (1, "run ATBA standalone on Breakfast split 1 → confirm ≈53.9 MoF (pipeline works)."),
-    (1, "run DELTA(WLTA) run_50S_allmetrics.sh → real 50Salads MoC, both --model_type atba and wclot."),
-    (1, "instrument the loop to dump per-video pseudo-labels + boundaries."),
-    (1, "score with our delta.align: MoC, edit, F1@k, median per-transition boundary offset."),
-    (0, "B — HAL ablation (after A, ~3 days):"),
-    (1, "port HAL's VAE tap + recon/KL/diff losses into DELTA's encoder (small, additive)."),
-    (1, "one Breakfast + one 50S run. Gate: does pseudo-label MoC improve beyond seed noise (±1)?"),
-    (1, "if no → drop HAL, cite the numbers, move on. If yes → keep as the strong baseline."),
-], sub="low-risk, high-information — the reference for everything after")
-
-# ------------------------------------------------------------------ 15. PATH C DETAIL
-bullets("Path C — VLM-direct alignment (the research contribution)", [
-    (0, "1. Extract frozen VLM frame features for 50Salads (VideoLLaMA3 vision tower / InternVideo2) + "
-        "text embeddings for the 17 action names (bare label and/or generated descriptions)."),
-    (0, "2. Build s(n,t) = cos(text_n, frame_t); diagnostics: zero-shot confusion vs GT, "
-        "is s peaked at true boundaries (vs I3D's 1.11×)?"),
-    (0, "3. Read Y* off s with our order-preserving DP / OT aligner — no frame classifier."),
-    (0, "4. Feed Y* into DELTA's pipeline (TAS + CTC + CRF + LTA decoder unchanged); "
-        "evaluate the Obs%/Pred% MoC grid vs ATBA, HAL, DELTA."),
-    (0, "5. Extensions: uncertainty-aware boundaries (from align_soft), fine-tune the alignment cost "
-        "with a light adapter + temporal cycle-consistency."),
-    (0, "Baselines to beat: naive 0.34 MoC · ATBA-Y* · HAL-Y* · warm-up-classifier ceiling."),
-], sub="frozen VLM → similarity → monotonic alignment → DELTA")
-
-# ------------------------------------------------------------------ 16. PATH D / E DETAIL
-bullets("Paths D & E — smaller bets", [
-    (0, "D — VLM as pseudo-annotator / zero-shot (exploratory):"),
-    (1, "prompt a video-LLM (VideoLLaMA3) on short clips: \"which of these 17 actions?\" or free caption."),
-    (1, "use as (i) an extra soft label to regularise Y*, (ii) auto-generated action descriptions for the text tower."),
-    (1, "cheap to try on a handful of clips; tells us how much semantic signal a VLM actually has here."),
-    (0, "E — 50Salads boundary-localisation benchmark (standalone):"),
-    (1, "ATBA and HAL report MoF / IoU but never boundary offset, and both skip 50Salads."),
-    (1, "a clean transcript→frame boundary benchmark on 50S is a small contribution on its own, "
-        "and it is the yardstick every alignment method (incl. the VLM one) is measured against."),
-], sub="low cost, decouplable from the video blocker (E needs only GT)")
-
-# ------------------------------------------------------------------ 17. RECOMMENDED SEQUENCING
-table_slide("Recommended sequencing",
-    ["When", "Work", "Gate / output"],
+# ------------------------------------------------------------------ 16. ELIZ / HAL PLAN
+table_slide("My workstream — HAL (H1–H7)",
+    ["#", "Step", "Gate / output"],
     [
-        ["Now", "E: boundary-benchmark spec on 50S (GT only, no video)  +  chase raw video", "metric code + the ask to the lab"],
-        ["Wk 1–2", "A: ATBA repro on Breakfast; DELTA(WLTA) baseline on 50S (cluster)", "real MoC numbers; pseudo-label dumps"],
-        ["Wk 3", "B: HAL ablation in DELTA — one run", "go/no-go on HAL (pseudo-label MoC)"],
-        ["Wk 3–4", "VLM feature extraction for 50S (once video arrives)", "features_vl3siglip/ + text embeddings"],
-        ["Wk 4–6", "C: VLM similarity → aligner → Y* quality vs all baselines", "the key comparison table"],
-        ["Wk 6+", "C: integrate best Y* into DELTA; Obs%/Pred% MoC; then Breakfast", "the result"],
+        ["H1", "Env + Breakfast features; reproduce ATBA split 1", "≈53.9 MoF — pipeline works"],
+        ["H2", "Reproduce HAL split 1 (README command)", "≈56.3 MoF — HAL reproduces"],
+        ["H3", "Dump ATBA pseudo-labels + z1/z2; score Y* with delta.align (MoC, edit, F1@k, boundary offset)", "does HAL give better pseudo-labels, or only better final MoF?"],
+        ["H4", "Get HAL running on 50Salads (add config, splits, transcripts; widen loader assert)", "first HAL 50Salads number"],
+        ["H5", "Port HAL into DELTA — VAE tap + recon/kl/diff losses on --model_type atba (~70 lines)", "DELTA-atba+HAL"],
+        ["H6", "DELTA-atba vs DELTA-atba+HAL on 50S + Breakfast → Obs%/Pred% MoC; ablate the 3 terms", "the result (+ or −)"],
+        ["H7", "If diff_loss (smoothness) helps → hand it to the VLM-aligner workstream", "shared component"],
     ],
-    sub="A/B in parallel with getting video; C is the thrust",
-    col_widths=[1.4, 6.9, 3.8], font=11)
+    sub="expected magnitude small — but it's the baseline table, and a clean negative is a real finding",
+    col_widths=[0.6, 8.0, 3.5], font=10)
 
-# ------------------------------------------------------------------ 18. QUESTIONS
+# ------------------------------------------------------------------ 17. THE VLM METHOD
+bullets("The DELTA VLM-direct method (where both workstreams land)", [
+    (0, "s(n,t) = sim( VLM_text(action_n), VLM_frame_t )  — frozen; no frame classifier in the alignment path."),
+    (0, "Y* = order-preserving DP / optimal-transport alignment on s  (ASOT is already in DELTA)."),
+    (0, "+ from CVA:  a CBD-style boundary-contrastive loss on the aligned boundary frames;  "
+        "a CTE-style windowed + cross-attn encoder on the VLM features."),
+    (0, "+ from HAL:  the L_s change-rate / smoothness penalty on the soft assignment sequence  "
+        "(anti over-segmentation, cheaper than HAL's VAE)."),
+    (0, "Feed Y* into DELTA's decoder + CRF + duration head (unchanged) → Obs%/Pred% MoC."),
+    (0, "Baselines: naive 0.34 · ATBA-in-DELTA · ASOT-in-DELTA · HAL · warm-up-classifier ceiling."),
+], sub="frozen VLM similarity → alignment → DELTA  ·  regularised by CVA + HAL ideas")
+
+# ------------------------------------------------------------------ 18. SEQUENCING
+table_slide("Sequencing",
+    ["When", "Eliz (HAL)", "Co-intern (CVA)", "Shared"],
+    [
+        ["Now", "H1–H2: reproduce ATBA + HAL on Breakfast (cluster)", "read CVA code; reproduce on QVHighlights", "chase raw 50S video"],
+        ["Wk 1–2", "H3–H4: score pseudo-labels; HAL on 50Salads", "isolate CBD + CTE as reusable modules", "phase 0: DELTA/WLTA baselines"],
+        ["Wk 3–4", "H5–H6: HAL in DELTA; MoC ablation", "CBD/CTE on our VLM features (once video)", "phase 1: VLM s for 50S"],
+        ["Wk 4+", "H7: smoothness term → VLM aligner", "CBD/CTE → VLM aligner", "phases 2–4: VLM-direct alignment → DLTA MoC"],
+    ],
+    sub="two parallel tracks converging on the DELTA VLM-direct method",
+    col_widths=[1.0, 3.9, 3.9, 3.3], font=9.5)
+
+# ------------------------------------------------------------------ 19. QUESTIONS
 bullets("Questions for you", [
     (0, "Can the group share raw 50Salads video? (blocks VLM features; official host is down.)"),
+    (0, "HAL workstream: is the goal to integrate it into DELTA (H5–H6), or just a standalone "
+        "reproduction + comparison? Is a negative result (\"doesn't transfer to anticipation\") acceptable?"),
     (0, "Primary target metric — alignment Y* quality on 50Salads, or downstream DLTA MoC?"),
-    (0, "Is establishing a 50Salads transcript-only alignment benchmark (ATBA & HAL skip it) "
-        "itself a contribution we should claim?"),
+    (0, "Is establishing a 50Salads transcript-only alignment benchmark (ATBA & HAL skip it) a contribution?"),
     (0, "Frozen VLM only, or is fine-tuning the alignment cost (light adapter) in scope?"),
-    (0, "Preferred VLM backbone — VideoLLaMA3 vision tower, InternVideo2, or something the group uses?"),
-    (0, "HAL: worth the ablation, or skip straight to the VLM work?"),
+    (0, "Preferred VLM backbone — VideoLLaMA3 vision tower, InternVideo2, CLIP, or something the group uses?"),
     (0, "Do we have the DELTA supplementary material (loss weights, decoder hyperparameters)?"),
 ], sub="to set the next phase")
 
@@ -361,8 +376,9 @@ s = section("Thank you", kicker="github.com/epayaslii/DELTA")
 box = s.shapes.add_textbox(Inches(0.8), Inches(4.6), Inches(11.7), Inches(1.2))
 tf = _tf(box)
 r = tf.paragraphs[0].add_run()
-r.text = "Docs: temporal-alignment.md · 50salads-notes.md · delta-code.md · approach.md"
-r.font.size = Pt(14); r.font.name = FONT; r.font.color.rgb = RGBColor(0xC9, 0xD6, 0xE3)
+r.text = ("Docs: temporal-alignment.md · 50salads-notes.md · delta-code.md · "
+          "baselines-hal-cva.md · hal-analysis.md · approach.md")
+r.font.size = Pt(13); r.font.name = FONT; r.font.color.rgb = RGBColor(0xC9, 0xD6, 0xE3)
 
 out = "/Users/elizpayasli/Documents/GitHub/DELTA/slides/DELTA_progress_Mariella.pptx"
 import os
