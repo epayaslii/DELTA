@@ -46,17 +46,18 @@ class _SigLIP2Text:
         mid = "google/siglip2-so400m-patch14-384"
         self.device = device
         self.tok = AutoTokenizer.from_pretrained(mid)
-        base = AutoModel.from_pretrained(mid, torch_dtype=torch_dtype).to(device).eval()
-        self.model = base.text_model
-        self.dim = int(base.config.text_config.hidden_size)
+        # full model: get_text_features applies the projection into the shared
+        # image/text space (base.text_model alone is NOT aligned to images).
+        self.model = AutoModel.from_pretrained(mid, torch_dtype=torch_dtype).to(device).eval()
+        self.dim = int(self.model.config.text_config.hidden_size)
 
     @torch.no_grad()
     def encode(self, texts: list[str]) -> np.ndarray:
-        batch = self.tok(texts, padding="max_length", max_length=64, truncation=True, return_tensors="pt").to(self.device)
-        out = self.model(**batch)
-        emb = getattr(out, "pooler_output", None)
-        if emb is None:
-            emb = out.last_hidden_state[:, -1]
+        batch = self.tok(texts, padding="max_length", max_length=64, truncation=True,
+                         return_tensors="pt").to(self.device)
+        emb = self.model.get_text_features(**batch)
+        if not torch.is_tensor(emb):                      # transformers>=5: returns an output
+            emb = emb.pooler_output
         return emb.float().cpu().numpy().astype(np.float32)
 
 

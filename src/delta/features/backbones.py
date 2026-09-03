@@ -161,17 +161,21 @@ class VL3SigLIP(_HFImageTower):
 
 @register("siglip2")
 class SigLIP2(_HFImageTower):
+    """SigLIP2 image tower via ``get_image_features`` -- the projected embedding
+    in the *shared* contrastive space (pairs with the siglip2 text tower). The
+    raw ``vision_model`` token mean is NOT in the text space -- do not use it."""
+
     model_id = "google/siglip2-so400m-patch14-384"
-    pool = "mean"
 
     def _build(self) -> None:
         from transformers import AutoModel, AutoProcessor
 
         self.processor = AutoProcessor.from_pretrained(self.model_id)
-        base = AutoModel.from_pretrained(self.model_id, torch_dtype=self.torch_dtype).to(self.device)
-        self.model = base.vision_model
+        self.model = AutoModel.from_pretrained(
+            self.model_id, torch_dtype=self.torch_dtype
+        ).to(self.device)
         self.model.eval()
-        self._dim = int(base.config.vision_config.hidden_size)
+        self._dim = int(self.model.config.text_config.hidden_size)
 
     def _forward(self, frames_uint8: np.ndarray) -> torch.Tensor:
         from PIL import Image
@@ -179,8 +183,10 @@ class SigLIP2(_HFImageTower):
         imgs = [Image.fromarray(f) for f in frames_uint8]
         inputs = self.processor(images=imgs, return_tensors="pt").to(self.device)
         with torch.autocast(device_type=self.device.split(":")[0], dtype=self.torch_dtype):
-            out = self.model(pixel_values=inputs["pixel_values"])
-        return out.last_hidden_state.mean(dim=1)
+            feats = self.model.get_image_features(pixel_values=inputs["pixel_values"])
+        if not torch.is_tensor(feats):                    # transformers>=5: returns an output
+            feats = feats.pooler_output
+        return feats
 
 
 @register("dinov2")
