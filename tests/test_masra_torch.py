@@ -102,8 +102,11 @@ def test_lrca_frame_mask_ignores_padding():
 
 def test_regularizer_bundles_both_terms():
     feat, y, tr, ce = _clean()
+    feat.requires_grad_(True)
     reg = MasraRegularizer(lam_sem=1.0, lam_rel=0.5, relation_mode="class-sim")
     out = reg(temporal_ctx=feat, temporal_feat=feat, entry_of_frame=y,
               transcript=tr, event_emb=ce[tr], class_emb=ce)
     assert {"loss", "loss_esta", "loss_lrca"} <= set(out)
     assert out["loss"].requires_grad
+    out["loss"].backward()
+    assert torch.isfinite(feat.grad).all()

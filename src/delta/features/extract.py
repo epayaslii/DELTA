@@ -47,17 +47,25 @@ def target_length(rec, reader: VideoReader, label_fps: float) -> int:
     return max(1, int(round(dur_s * label_fps)))
 
 
-def extract_one(rec, backbone, sampler: FrameSampler, label_fps: float, l2norm: bool) -> np.ndarray:
+def extract_one(rec, backbone, sampler: FrameSampler, label_fps: float, l2norm: bool,
+                every: int = 1) -> np.ndarray:
+    """``every > 1``: encode only every N-th label position, then nearest-fill
+    back to the full length. ~1/N the compute for a coarser feature grid --
+    useful for a quick local pass or an expensive video-native backbone."""
     reader = VideoReader(str(rec.video_path))
     try:
         T = target_length(rec, reader, label_fps)
         plan = sampler.plan(reader.num_frames, T)          # (T, window)
-        flat = plan.reshape(-1)
-        frames = reader.get_batch(flat)                    # (T*window, H, W, 3)
-        feats = backbone.encode(frames)                    # (T*window, D)
+        keep = np.arange(0, plan.shape[0], max(1, every))
+        sub = plan[keep]                                   # (T_sub, window)
+        frames = reader.get_batch(sub.reshape(-1))         # (T_sub*window, H, W, 3)
+        feats = backbone.encode(frames)                    # (T_sub*window, D)
     finally:
         reader.close()
-    feats = feats.reshape(plan.shape[0], plan.shape[1], -1).mean(axis=1)   # window pool -> (T, D)
+    feats = feats.reshape(sub.shape[0], sub.shape[1], -1).mean(axis=1)     # window pool -> (T_sub, D)
+    if every > 1:
+        nn = np.clip(np.searchsorted(keep, np.arange(T), side="right") - 1, 0, len(keep) - 1)
+        feats = feats[nn]                                  # (T, D)  nearest-fill
     if l2norm:
         feats = feats / (np.linalg.norm(feats, axis=1, keepdims=True) + 1e-8)
     return feats.astype(np.float32).T                      # (D, T)  -- I3D layout
@@ -90,6 +98,8 @@ def main(argv=None):
     p.add_argument("--device", default="cuda")
     p.add_argument("--dtype", default="bf16", choices=["bf16", "fp16", "fp32"])
     p.add_argument("--batch-size", type=int, default=64)
+    p.add_argument("--every", type=int, default=1,
+                   help="encode every N-th label position, nearest-fill the rest (1/N compute)")
     p.add_argument("--overwrite", action="store_true")
     p.add_argument("--text-only", action="store_true", help="only dump action-name embeddings")
     p.add_argument("--limit", type=int, help="debug: process at most N videos")
@@ -165,7 +175,8 @@ def main(argv=None):
                 continue
             t0 = time.time()
             try:
-                feats = extract_one(rec, backbone, sampler, sampler.label_fps, l2norm)
+                feats = extract_one(rec, backbone, sampler, sampler.label_fps, l2norm,
+                                    every=args.every)
             except Exception as e:  # keep the array job alive
                 print(f"  !! {vid}: {type(e).__name__}: {e}")
                 failed += 1
