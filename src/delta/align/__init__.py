@@ -10,6 +10,15 @@ from .eval import (
 )
 from .similarity import similarity_matrix, transcript_text_embeddings, boundary_peakedness
 from .ta import align_dp, align_soft, AlignResult
+from .masra import (
+    esta_alignment,
+    lrca_residual,
+    visual_relation_matrix,
+    transcript_relation_matrix,
+    masra_report,
+    EstaResult,
+    LrcaResult,
+)
 
 __all__ = [
     "mean_over_frames",
@@ -26,4 +35,11 @@ __all__ = [
     "align_dp",
     "align_soft",
     "AlignResult",
+    "esta_alignment",
+    "lrca_residual",
+    "visual_relation_matrix",
+    "transcript_relation_matrix",
+    "masra_report",
+    "EstaResult",
+    "LrcaResult",
 ]
