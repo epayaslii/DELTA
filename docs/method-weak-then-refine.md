@@ -33,6 +33,11 @@ those regularizers still apply, but inside the two-stage structure below.
 ### Stage A — weak temporal alignment
 - Order-preserving monotonic alignment (ASOT / DP — `delta.align.ta.align_dp`,
   and `--model_type wclot` in the WLTA code) of transcript → sampled frames on `s0`.
+- **Must include a strong temporal / length prior.** Measured 2026-09-03: hard DP
+  on a single-frame SigLIP2 similarity scores **MoC 0.199 < naive-uniform 0.366**
+  on 50Salads split-1 — a weak `s` + unpriored DP is worse than "split evenly".
+  So Stage A = ASOT with a temporal prior (or interpolate from the naive prior),
+  not argmax-DP on raw VLM similarity.
 - Output: **coarse segment spans**, boundaries good to ± the sampling gap.
 - No boundary precision expected here — that's Stage B's job.
 

@@ -86,3 +86,32 @@ will land lower, and closing that gap is the project.
   median per-transition boundary offset alongside.
 - Keep the naive-uniform and (later) supervised-warm-up numbers as the floor
   and ceiling around every ATBA result.
+
+## Measurement — single-frame SigLIP2 as a direct aligner (2026-09-03)
+
+Coarse **SigLIP2-so400m** frame embeddings (`get_image_features`, 1 fps, nearest-
+filled), split-1 test (n=10). Transcript×frame cosine → hard DP alignment
+(`delta.align.ta.align_dp`).
+
+| | naive-uniform | SigLIP2 + DP |
+|---|---|---|
+| MoC | 0.366 | **0.199** |
+| F1@50 | 26.2 | 6.7 |
+| edit | 100 | 100 |
+
+**A single-frame image-CLIP direct aligner is worse than the no-evidence floor.**
+Why: fixed overhead camera → frame–frame cosine ≈ 0.94 (features barely vary);
+text–image cosine ≈ 0.09 (aligned but weak); it separates coarse verbs
+(cut vs add-dressing) but not *which* vegetable, and locks onto one wrong action
+for long runs. A noisy `s` + hard DP underperforms the equal-length prior.
+
+Diagnostics vs the I3D reference (oracle/naive):
+- LRCA-block residual 0.52 (I3D 0.465 / 0.483) — **less** block structure than I3D
+- ESTA `1−cos` 0.90 → semantic pull ≈ 0.10
+- boundary score at GT 0.52 ≈ chance (I3D 0.67)
+
+Conclusion: the "VLM-direct alignment" framing needs (a) a **video / temporal**
+encoder, not single frames, and (b) **weak-align-then-refine** — let the
+transcript prior carry the coarse structure (ASOT with a temporal prior, or the
+naive prior), use the VLM only for local boundary refinement. See
+`docs/method-weak-then-refine.md`.
