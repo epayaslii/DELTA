@@ -28,3 +28,6 @@ env/
 /third_party/*/
 # the DELTA/WLTA code from the group — not ours to redistribute
 /WLTA/
+
+# scratch experiments
+/scratch/
