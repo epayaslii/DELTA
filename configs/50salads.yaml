@@ -6,8 +6,10 @@
 dataset:
   name: 50salads
   root: data/50salads           # groundTruth/ mapping.txt splits/ features/ (dinggd/50salads bundle)
-  video_dir: data/50salads/videos   # rgb-XX-Y.avi (30 fps, top view) -- NOT included in the bundle;
-                                    # official host (cvip.computing.dundee.ac.uk) is currently down
+  video_dir: data/50salads/videos   # rgb-XX-Y.avi (30 fps, top view), 50 files, ~1.8 GB.
+                                    # symlinks -> a local copy from the group (Drive). Header frame
+                                    # count runs ~8 frames longer than groundTruth/features; align to
+                                    # the first T decoded frames.
   feature_dir: data/50salads/features   # bundled I3D (2048-d, 30 fps), for parity runs
 
 features:
