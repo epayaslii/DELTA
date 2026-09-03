@@ -35,3 +35,19 @@ Its benchmark data (groundTruth/splits) is on the authors' Google Drive; the
 
 `arXiv:2602.24275` (CVPR 2026) — current transcript-supervised SOTA. Also does
 not report 50Salads.
+
+## cgdetr/ — CG-DETR (Moon et al., CVPR 2024)
+
+```bash
+git clone https://github.com/wjun0830/CGDETR.git third_party/cgdetr
+```
+Video-temporal-grounding DETR; the public baseline closest to **MASRA** (which
+has no code). We reimplement MASRA's ESTA/LRCA regularizers on top of it for the
+M1 TACoS check — see [`../scripts/masra_m1.md`](../scripts/masra_m1.md),
+[`../docs/masra-analysis.md`](../docs/masra-analysis.md). Needs Python 3.7.
+
+## features/ — pre-extracted grounding features (gitignored)
+
+`features/tacos/` — CG-DETR's SlowFast+CLIP features for TACoS (305 MB, from the
+CG-DETR repo's Google Drive). `slowfast_features` (T, 2304), `clip_features`
+(T, 512), `clip_text_features` per query (L, 512). 127 videos.
