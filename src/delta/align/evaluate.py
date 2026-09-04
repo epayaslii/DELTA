@@ -57,6 +57,28 @@ def provider_vlm(ds: ActionSegDataset, vid: str, frame_dir: str, class_emb: np.n
     return similarity_matrix(txt, f, temperature=temperature), rec
 
 
+def _load_frames(frame_dir: str, vid: str, n_label_frames: int) -> np.ndarray:
+    f = np.load(f"{frame_dir}/{vid}.npy")
+    if f.shape[0] != n_label_frames and f.shape[1] == n_label_frames:
+        f = f.T
+    return f                                                     # (T, D)
+
+
+def provider_asot(ds: ActionSegDataset, vid: str, frame_dir: str, class_emb: np.ndarray,
+                  w_sem: float = 1.0, rho: float = 0.15, alpha: float = 0.3):
+    """Stage-A weak alignment. Builds the fused cost (semantic + temporal prior)
+    and runs fused-GW OT. Returns ``(y_star, record)`` -- the driver detects a
+    tuple whose first element is 1-D and skips its own DP."""
+    from delta.align.cost import fused_cost
+    from delta.align.asot import align_asot
+
+    rec = ds.record(vid)
+    f = _load_frames(frame_dir, vid, rec.num_label_frames)
+    C = fused_cost(f, rec.transcript, class_emb, w_sem=w_sem, rho=rho)
+    y = align_asot(C, rec.transcript, alpha=alpha).y_star
+    return y, rec
+
+
 # --------------------------------------------------------------------------------------
 # driver
 # --------------------------------------------------------------------------------------
@@ -72,8 +94,11 @@ def evaluate(ds: ActionSegDataset, ids, provider, ignore=None, transition_penalt
         if provider == "naive":
             y = naive_uniform_labeling(rec.transcript, rec.num_label_frames)
         else:
-            s, rec = provider(ds, vid, **prov_kw)
-            y = align_dp(s, rec.transcript, transition_penalty=transition_penalty).y_star
+            out, rec = provider(ds, vid, **prov_kw)
+            if np.ndim(out) == 1:                       # provider already decoded Y*
+                y = np.asarray(out)
+            else:                                      # (N, T) similarity -> hard DP
+                y = align_dp(out, rec.transcript, transition_penalty=transition_penalty).y_star
         r = segmentation_report(y, rec.frame_labels, ignore=ignore)
         r["video_id"] = vid
         rows.append(r)
@@ -85,13 +110,15 @@ def evaluate(ds: ActionSegDataset, ids, provider, ignore=None, transition_penalt
 def main(argv=None):
     p = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     p.add_argument("--config", required=True)
-    p.add_argument("--provider", default="naive", choices=["naive", "oracle", "vlm"])
+    p.add_argument("--provider", default="naive", choices=["naive", "oracle", "vlm", "asot"])
     p.add_argument("--split", type=int, default=1)
     p.add_argument("--subset", default="test", choices=["train", "test"])
     p.add_argument("--frame-dir", help="VLM feature dir (provider=vlm)")
     p.add_argument("--class-emb", help="action_name_embeddings.npy (provider=vlm)")
     p.add_argument("--temperature", type=float)
     p.add_argument("--tp", type=float, default=0.0, help="transition penalty")
+    p.add_argument("--rho", type=float, default=0.15, help="asot: temporal prior weight")
+    p.add_argument("--alpha", type=float, default=0.3, help="asot: GW structure weight")
     p.add_argument("--ignore-startend", action="store_true")
     args = p.parse_args(argv)
 
@@ -109,6 +136,11 @@ def main(argv=None):
     elif args.provider == "oracle":
         mean, _ = evaluate(ds, ids, provider_oracle_blocky, ignore=ignore,
                            transition_penalty=args.tp)
+    elif args.provider == "asot":
+        class_emb = np.load(args.class_emb)
+        mean, _ = evaluate(ds, ids, provider_asot, ignore=ignore,
+                           frame_dir=args.frame_dir, class_emb=class_emb,
+                           rho=args.rho, alpha=args.alpha)
     else:
         class_emb = np.load(args.class_emb)
         mean, _ = evaluate(ds, ids, provider_vlm, ignore=ignore,
