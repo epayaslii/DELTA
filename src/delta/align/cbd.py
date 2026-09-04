@@ -1,17 +1,23 @@
-"""Stage-B boundary refinement: context-invariant boundary discrimination (CBD).
+"""Stage-B2: Pseudo-Boundary Contrastive Refinement (PBCR).
 
-CVA's CBD loss (CVPR'26), adapted to the weak setting. CVA computes it on
-**ground-truth** span boundaries; we compute it on the **predicted** boundaries
-of the Stage-A alignment (`delta.align.asot`). No GT spans -- so it is usable
-here even though CVA-the-paper is fully supervised.
+Inspired by CVA's CBD loss (CVPR'26), but **not** a reuse of it. Published CBD is
+fully supervised: it anchors the contrastive loss on **GT-span boundary indices**,
+defines negatives relative to the GT span, and the outer VTG objective
+Hungarian-matches predicted moments to GT moments. None of that is available to us.
 
-Idea: a true transition frame's representation should be
-  * invariant to surrounding context   -> positive = the same frame index in a
-    second augmentation of the clip
-  * distinct from non-transition frames -> negatives = temporally adjacent frames
-    and the hardest (most cosine-similar) frames elsewhere
+PBCR keeps only the *principle* -- "a transition frame deserves its own
+contrastive representation, invariant to context and distinct from action
+interiors" -- and rebuilds the pieces from things we legitimately have:
+  * anchors  = *confident* pseudo-boundaries from Stage A / the local search
+               (`delta.align.refine`), NOT every predicted boundary
+  * positive = the same index under a second augmentation
+  * negatives = confident action interiors (left / right) + other confusable
+               transitions
 
-InfoNCE over those, weight ~0.005 against the backbone loss.
+**Known failure mode:** if the pseudo-boundary is wrong, the loss reinforces the
+wrong location. Mitigation lives outside this function -- confidence weighting
+from the local search, local candidate windows, iterative realignment (Stage B2
+loop). Only feed boundaries above a confidence threshold.
 
 torch; not re-exported from ``delta.align`` (keeps the package importable without
 torch). Import directly: ``from delta.align.cbd import cbd_loss, BoundaryHead``.
@@ -54,19 +60,24 @@ def _negatives(z_anchor_view: torch.Tensor, b: int, T: int, n_adj: int, n_hard: 
 def cbd_loss(
     feat_view1: torch.Tensor,       # (T, D) projected features, augmentation 1
     feat_view2: torch.Tensor,       # (T, D) projected features, augmentation 2 (same indexing)
-    boundaries: list[int],          # predicted transition frame indices (Stage A)
+    boundaries: list[int],          # *confident* pseudo-boundary frame indices
+    weights: list[float] | None = None,   # per-boundary confidence in [0, 1]
     n_adj: int = 2,
     n_hard: int = 10,
     tau: float = 0.07,
 ) -> torch.Tensor:
-    """Mean InfoNCE over boundary frames. anchor = view1[b], positive = view2[b],
-    negatives = adjacent + hard-mined from view1."""
+    """Confidence-weighted mean InfoNCE over pseudo-boundary frames. anchor =
+    view1[b], positive = view2[b], negatives = adjacent + hard-mined from view1.
+    Pass ``weights`` (e.g. the local-search confidence) so uncertain boundaries
+    contribute less -- a wrong anchor otherwise self-reinforces."""
     T = feat_view1.shape[0]
-    bs = [int(b) for b in boundaries if 0 <= int(b) < T]
-    if not bs:
+    pairs = [(int(b), 1.0 if weights is None else float(w))
+             for b, w in zip(boundaries, weights or [1.0] * len(boundaries))
+             if 0 <= int(b) < T]
+    if not pairs:
         return feat_view1.sum() * 0.0
-    losses = []
-    for b in bs:
+    losses, ws = [], []
+    for b, w in pairs:
         a = feat_view1[b]                                   # anchor
         pos = feat_view2[b]                                 # positive
         neg_idx = _negatives(feat_view1, b, T, n_adj, n_hard, a)
@@ -78,9 +89,11 @@ def cbd_loss(
         logits = torch.cat([s_pos[None], s_neg])
         losses.append(F.cross_entropy(logits[None], torch.zeros(1, dtype=torch.long,
                                                                 device=logits.device)))
+        ws.append(w)
     if not losses:
         return feat_view1.sum() * 0.0
-    return torch.stack(losses).mean()
+    w_t = torch.tensor(ws, device=feat_view1.device)
+    return (torch.stack(losses) * w_t).sum() / w_t.sum().clamp_min(1e-6)
 
 
 def jitter_views(feat: torch.Tensor, drop: float = 0.1, noise: float = 0.05

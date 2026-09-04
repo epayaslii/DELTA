@@ -21,6 +21,7 @@ from .masra import (
 )
 from .asot import align_asot, segment_asot, decode, temporal_prior, monotonic_mask, AsotResult
 from .cost import fused_cost
+from .refine import refine_boundaries, search_one, BoundarySearchResult
 
 __all__ = [
     "mean_over_frames",
@@ -51,4 +52,7 @@ __all__ = [
     "monotonic_mask",
     "AsotResult",
     "fused_cost",
+    "refine_boundaries",
+    "search_one",
+    "BoundarySearchResult",
 ]

@@ -134,3 +134,21 @@ the near-constant features blur), and `w_sem·(1−cos)` contributes almost noth
 because SigLIP2 cosines vary only ~0.05 across actions. The Stage-A machinery is
 correct; **the features are the bottleneck** — next is V-JEPA2 / InternVideo2 +
 TASOT-style VLM captions (M-A4, cluster).
+
+### Stage B1 — local semantic boundary search (2026-09-04)
+
+`delta.align.refine`: ±r window around each coarse boundary, score each position
+by "left = A not B, right = B not A" + a visual-change term, pick the best,
+attach a prominence confidence.
+
+| | MoC | F1@50 |
+|---|---|---|
+| ASOT | 0.342 | 22.9 |
+| ASOT + refine (r=90, w=40) | 0.352 | 23.4 |
+
++0.01 MoC. The **confidence signal is the useful output**: over 199 boundaries,
+mean confidence 0.27, only **5 % above 0.5**. Mean \|shift\| 21.6 frames. The
+search correctly reports it *cannot* confidently localise boundaries from these
+features — which is (a) the right diagnostic, (b) exactly the input Stage B3
+needs (route the low-confidence 95 % to a chat-VLM). Re-run once V-JEPA2 /
+InternVideo2 features exist.
