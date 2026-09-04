@@ -7,8 +7,8 @@ research-grade.
 
 ## What it is
 
-DELTA is built **on top of the CLOT / ASOT codebase** (both from Dimiccoli's
-group at IRI — CLOT = Bueno-Benito & Dimiccoli ICCV'25, ASOT = Xu & Gould
+DELTA is built **on top of the CLOT / ASOT codebase** (both from the group
+at IRI — CLOT = ICCV'25, ASOT = Xu & Gould
 CVPR'24). That inheritance explains a lot of the code:
 
 | file | role |

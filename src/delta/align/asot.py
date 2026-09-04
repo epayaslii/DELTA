@@ -1,7 +1,7 @@
 """Stage-A weak alignment: fused Gromov-Wasserstein optimal transport.
 
 A minimal self-contained numpy port of ASOT (Xu & Gould, CVPR'24) / CLOT
-(Bueno-Benito & Dimiccoli, ICCV'25) -- the solver the group's WLTA code uses as
+(ICCV'25) -- the solver the group's WLTA code uses as
 ``--model_type wclot`` (``third_party/delta_wlta/src/asot.py``). We keep it in
 numpy for parity with the rest of ``delta.align`` and so Stage A runs without a
 GPU.
