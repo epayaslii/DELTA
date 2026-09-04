@@ -5,54 +5,86 @@ Combines the best-fitting piece of each analysed paper. All stages stay
 see `50salads-notes.md`). Companion: `method-weak-then-refine.md` (the design),
 `masra-analysis.md` / `baselines-hal-cva.md` (the sources).
 
+**Framing (peer review, 2026-09-04):** the contribution is *how to turn weak
+transcript-order structure into accurate VLM-guided boundaries without ever
+seeing a GT timestamp*. HiERO-StepG gives the weak structure; the **local
+semantic boundary search** (Stage B1) is the novel core; the contrastive
+refinement (Stage B2) is our own objective, **not** a reuse of CVA's CBD.
+
 ## Component sources
 
-| stage | idea | from | why that paper |
+| stage | idea | from | how we adapt it |
 |---|---|---|---|
-| **0** semantic-guided sampling | language decides where to spend VLM compute | **LGTTP** (EMNLP'25) | model-agnostic query→token-density; "cost is a constraint" |
-| **A** weak alignment | fused-GW **OT** with a transcript temporal prior + **VLM semantic cues in the cost** | **TASOT** (2602.24138) + **ASOT/CLOT** (group code) | TASOT = ASOT + VLM captions in the cost, annotation-free; ASOT already in `wclot` |
-| **A′** monotonic decode | strict temporal monotonicity + fine/coarse agreement + noise post-proc | **HiERO-StepG** (2605.31227) | zero-shot ordered-steps→spans, exactly Stage A |
-| **B** boundary refinement | **CBD** context-invariant boundary contrastive loss on *predicted* pseudo-boundaries | **CVA** (CVPR'26) | works on any boundary frames + augmentations, no GT spans |
-| **B** relational sharpening | **LRCA / ESTA** on local windows | **MASRA** (ACM'26) | `delta.align.masra_torch`, already built |
-| **B′** hard-case reasoning | prompt a chat-VLM with candidate `[s,e]` and the two action names | **TOGA** (2506.09445) | "segments in the VLM imports"; consistency check |
-| features | video-native embeddings | **V-JEPA2** (from D-CLOT release) or InternVideo2 | single-frame SigLIP2 failed (`50salads-notes.md`) |
+| **0** semantic-guided sampling | language decides where to spend VLM compute | **LGTTP** (EMNLP'25) | encode densely near likely transitions, sparse inside stable segments |
+| **A1** VLM semantic evidence | frozen VLM clip↔action similarity | **OVTAS** (2026, training-free FAES/SMTS) | clip↔*transcript-position* similarity — we keep the order OVTAS discards |
+| **A2** video segments not frames | represent actions with temporal context | **HiERO** | short multi-scale clips, not single images (single-frame SigLIP2 failed) |
+| **A3** ordered grounding + monotonic decode | strict temporal monotonicity over procedural steps | **HiERO-StepG** (2605.31227) | DELTA's real ordered transcript; DP monotonic decode |
+| **A-alt** OT decoder | multimodal OT: visual structure + semantic cost + temporal reg | **TASOT** (2602.24138) | transcript actions as the semantic source, order imposed — *ablation vs A3, not default* |
+| **B1** local boundary search | search candidate positions around each coarse transition | **OUR DESIGN** | ±r window; score "left = A, right = B" + visual-change term; pick best + confidence |
+| **B2** pseudo-boundary contrastive refinement (PBCR) | boundaries deserve their own contrastive representation | **CVA CBD — inspiration only** | published CBD anchors on **GT spans**; we build anchors from *confident* pseudo-boundaries, negatives from confident action interiors — **our objective, new name** |
+| **B** relational sharpening | LRCA / ESTA on local windows | **MASRA** (ACM'26) | `delta.align.masra_torch`, already built |
+| **B3** hard-case reasoning | pseudo temporal grounding + consistency, no GT timestamps | **TOGA** (2506.09445) | call a chat-VLM only on low-confidence boundaries, locally |
+| **C** frame↔segment feedback | closed-loop OT refinement | **CLOT / D-CLOT** | transcript-defined segment identities, not anonymous clusters — *V3 only* |
+| features | video-native embeddings | **V-JEPA2** (D-CLOT release) / InternVideo2 | replace single-frame SigLIP2 |
+| output | dense pseudo-labels `Y*` | **DELTA interface** | boundaries → per-frame labels, unchanged downstream |
+
+### ⚠️ Correction on CVA CBD
+
+Earlier notes said "CVA's CBD works on any boundary frames, no GT spans needed."
+**Not true of published CBD** — it anchors on GT-span boundary indices, defines
+negatives relative to the GT span, and the outer objective Hungarian-matches
+predictions to GT moments. Our `delta.align.cbd` is *already* the adapted form
+(takes predicted boundaries), but the adaptation is **ours** and has a real
+failure mode: a wrong pseudo-boundary self-reinforces. Mitigation = confidence
+weighting from Stage B1 + iterative realignment. Report it as **PBCR**, our
+contribution, crediting CVA for the *principle* only.
 
 ## Modules (this repo)
 
 ```
-delta.align.asot        NEW  minimal self-contained fused-GW OT solver (torch):
-                             segment_asot(cost, mask, ...) -> transport plan T
-                             monotonic_mask(transcript, T) -> (T,) soft plausibility
-                             temporal_prior(transcript, T, K) -> (T,K) cost
-                             decode(T) -> Y*  (argmax + monotonic cleanup)
-delta.align.cost        NEW  fused cost matrix (TASOT):
-                             C = a*(1 - s_visual) + b*(1 - s_semantic) + rho*temporal_prior
-                             s_visual   : cos(frame_i, frame_j)-driven GW handled by asot
-                             s_semantic : cos(action_text_n, frame_t)  (siglip2 / VLM caption)
-delta.align.cbd         NEW  CVA CBD loss (torch): cbd_loss(feat, boundaries, augment_fn, ...)
+delta.align.asot        DONE fused-GW OT: segment_asot / decode / temporal_prior /
+                             monotonic_mask / align_asot   (Stage A3 + A-alt)
+delta.align.cost        DONE fused cost = w_sem(1-cos(text,frame)) + w_cap(...) + rho*prior
+delta.align.refine      NEW  Stage B1: local semantic boundary search
+                             refine_boundaries(sim, coarse, entries, radius, w)
+                               -> refined positions + per-boundary confidence
+delta.align.cbd         DONE PBCR objective (torch) -- contrastive on *predicted*
+                             boundaries; needs confidence weighting (Stage B2)
 delta.align.masra_torch DONE ESTA / LRCA / MasraRegularizer
-delta.align.ta          DONE align_dp / align_soft  (kept as a baseline / hard-DP option)
-delta.features.extract  DONE + --every N ; add internvideo2 / vjepa2 backbones (cluster)
+delta.align.ta          DONE align_dp / align_soft  (hard-DP baseline)
+delta.features.extract  DONE + --every N ; add vjepa2 / internvideo2 backbones (cluster)
 ```
+
+## Version ladder (peer review)
+
+- **V0 — sanity**: OVTAS-style VLM similarity + ordered transcript + monotonic
+  decode. *Question: does VLM semantics carry any temporal signal?* → measured
+  2026-09-04 on coarse SigLIP2: no (ASOT 0.34 < naive 0.37). Redo with V-JEPA2.
+- **V1 — the proposed method**: clip-level VLM evidence → HiERO-StepG monotonic
+  alignment → coarse boundaries → **local semantic boundary search** → refined
+  `Y*`. *Priority.*
+- **V2 — boundary learning**: add pseudo-boundary uncertainty + PBCR (redesigned
+  contrastive, no GT). Stronger novelty if V1 works.
+- **V3 — iterative segment refinement**: CLOT/D-CLOT ideas, if V2 still struggles
+  with short/ambiguous actions.
+- **V4 — expensive reasoning**: TOGA-like / VideoLLaMA3, low-confidence boundaries only.
 
 ## Milestones
 
-- **M-A1** ✅ minimal ASOT in `delta.align.asot` (+ tests, 2026-09-04)
-- **M-A2** ✅ `delta.align.cost` fused cost; `asot` provider in `evaluate.py`
-- **M-A3** ✅ measured on coarse siglip2, split-1: ASOT 0.342 recovers the
-  hard-DP collapse (0.199) but doesn't clear naive (0.366). GW term hurts on
-  near-constant features; VLM semantic cost negligible. **Bottleneck = features.**
-- **M-A4** ← **next**: V-JEPA2 / InternVideo2 features + TASOT VLM captions
-  (needs cluster). re-measure.
-- **M-B1** ✅ `delta.align.cbd` — CVA CBD loss (+ tests, 2026-09-04)
-- **M-B2** Stage B loop: local window around each Stage-A boundary → CBD + LRCA
-  refine → updated `Y*`. measure boundary offset. *cluster (training)*
-- **M-B3** TOGA-style hard-case reasoning: chat-VLM prompt with `[s,e]` + names,
-  consistency check against the segment. *cluster*
-- **M-C**  best `Y*` → DELTA decoder (`wclot`/`atba` unchanged) → Obs%/Pred% MoC.
+- **M-A1..3** ✅ ASOT + fused cost + measured (2026-09-04): recovers the hard-DP
+  collapse (0.199 → 0.34), still < naive (0.37). **Bottleneck = features.**
+- **M-B1** ✅ `delta.align.cbd` (PBCR objective, torch, tests)
+- **M-B1b** ✅ `delta.align.refine` — local semantic boundary search (V1 core).
+  On coarse SigLIP2: +0.01 MoC, but 95 % of boundaries low-confidence → the
+  confidence signal correctly flags "features too weak"; feeds B3 routing.
+- **M-A4** ← **next**: V-JEPA2 / InternVideo2 features + TASOT VLM captions —
+  re-run M-A3 + M-B1b. *cluster*
+- **M-B2** PBCR loop with confidence weighting. *cluster (training)*
+- **M-B3** TOGA-style chat-VLM on low-confidence boundaries. *cluster*
+- **M-C** best `Y*` → DELTA decoder (`wclot`/`atba` unchanged) → Obs%/Pred% MoC.
 
-## Open questions for the supervisor (unchanged)
+## Open questions for the supervisor
 
 1. which "pass-to-VLM real-time-reasoning" paper (TOGA? something else)?
 2. segment prompt = visual span marker or text timestamps + names?
-3. Stage B on VLM embeddings + CBD, or chat-VLM judgement, or both?
+3. Stage B on VLM embeddings + contrastive, or chat-VLM judgement, or both?

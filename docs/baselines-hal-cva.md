@@ -185,9 +185,21 @@ Not 2025-26, but these are what "TA" actually means (ordered sequence → video)
 - **Drop-DTW** (NeurIPS 2021) — the differentiable sequence↔video DTW primitive.
 - **ASOT** — already inside DELTA (`--model_type wclot`, `src/asot.py`).
 
-Also-rans: OVTAS (ICRA 2026, VLM×14 zero-shot action segmentation — "which VLM"
-study); Ali et al. (ICCV 2025, self-supervised video↔video alignment + segmentation,
-OT — *not* VLM); REMAP/REALIGN (2025, partial-GW-OT procedure alignment).
+Also-rans: Ali et al. (ICCV 2025, self-supervised video↔video alignment +
+segmentation, OT — *not* VLM); REMAP/REALIGN (2025, partial-GW-OT procedure alignment).
+
+### OVTAS — the training-free VLM-similarity front-end (arXiv 2602.21406, Feb 2026)
+
+*Exploring VLMs for Open-Vocabulary Zero-Shot Action Segmentation.* Training-free,
+segmentation-by-classification: **FAES** (frame↔action embedding cosine, 14 VLMs
+compared) → **SMTS** (similarity-matrix temporal smoothing). Zero-shot, no
+supervision. **Does not use action order** (open-vocab label-set matching).
+
+Role for us (peer review 2026-09-04): the **semantic-evidence generator / V0
+baseline**, not the whole Stage A. `delta.align.cost.fused_cost` is FAES with the
+transcript position as the label; `delta.align.asot` replaces SMTS's order-agnostic
+smoothing with an order-preserving OT decode. Its 14-VLM comparison is the guide
+for picking the frame/clip backbone (M-A4).
 
 ---
 

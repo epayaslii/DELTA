@@ -65,18 +65,28 @@ def _load_frames(frame_dir: str, vid: str, n_label_frames: int) -> np.ndarray:
 
 
 def provider_asot(ds: ActionSegDataset, vid: str, frame_dir: str, class_emb: np.ndarray,
-                  w_sem: float = 1.0, rho: float = 0.15, alpha: float = 0.3):
-    """Stage-A weak alignment. Builds the fused cost (semantic + temporal prior)
-    and runs fused-GW OT. Returns ``(y_star, record)`` -- the driver detects a
-    tuple whose first element is 1-D and skips its own DP."""
+                  w_sem: float = 1.0, rho: float = 0.15, alpha: float = 0.3,
+                  refine: bool = False, radius: int = 30, window: int = 20,
+                  w_visual: float = 0.5):
+    """Stage-A weak alignment (fused-GW OT on a semantic + temporal-prior cost),
+    optionally followed by the Stage-B1 local semantic boundary search. Returns
+    ``(y_star, record)``."""
     from delta.align.cost import fused_cost
     from delta.align.asot import align_asot
+    from delta.align.similarity import similarity_matrix, transcript_text_embeddings
+    from delta.align.refine import refine_boundaries
 
     rec = ds.record(vid)
     f = _load_frames(frame_dir, vid, rec.num_label_frames)
     C = fused_cost(f, rec.transcript, class_emb, w_sem=w_sem, rho=rho)
-    y = align_asot(C, rec.transcript, alpha=alpha).y_star
-    return y, rec
+    ar = align_asot(C, rec.transcript, alpha=alpha)
+    if not refine:
+        return ar.y_star, rec
+    # entry index per frame from the Stage-A label run-lengths
+    e = np.cumsum(np.r_[0, np.diff(ar.y_star) != 0])
+    sim = similarity_matrix(transcript_text_embeddings(rec.transcript, class_emb), f)
+    res = refine_boundaries(sim, e, radius=radius, window=window, frame_emb=f, w_visual=w_visual)
+    return np.asarray(rec.transcript, int)[res.entry_of_frame], rec
 
 
 # --------------------------------------------------------------------------------------
@@ -110,7 +120,8 @@ def evaluate(ds: ActionSegDataset, ids, provider, ignore=None, transition_penalt
 def main(argv=None):
     p = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     p.add_argument("--config", required=True)
-    p.add_argument("--provider", default="naive", choices=["naive", "oracle", "vlm", "asot"])
+    p.add_argument("--provider", default="naive",
+                   choices=["naive", "oracle", "vlm", "asot", "asot+refine"])
     p.add_argument("--split", type=int, default=1)
     p.add_argument("--subset", default="test", choices=["train", "test"])
     p.add_argument("--frame-dir", help="VLM feature dir (provider=vlm)")
@@ -119,6 +130,8 @@ def main(argv=None):
     p.add_argument("--tp", type=float, default=0.0, help="transition penalty")
     p.add_argument("--rho", type=float, default=0.15, help="asot: temporal prior weight")
     p.add_argument("--alpha", type=float, default=0.3, help="asot: GW structure weight")
+    p.add_argument("--radius", type=int, default=30, help="asot+refine: boundary search radius")
+    p.add_argument("--window", type=int, default=20, help="asot+refine: left/right window")
     p.add_argument("--ignore-startend", action="store_true")
     args = p.parse_args(argv)
 
@@ -136,11 +149,13 @@ def main(argv=None):
     elif args.provider == "oracle":
         mean, _ = evaluate(ds, ids, provider_oracle_blocky, ignore=ignore,
                            transition_penalty=args.tp)
-    elif args.provider == "asot":
+    elif args.provider in ("asot", "asot+refine"):
         class_emb = np.load(args.class_emb)
         mean, _ = evaluate(ds, ids, provider_asot, ignore=ignore,
                            frame_dir=args.frame_dir, class_emb=class_emb,
-                           rho=args.rho, alpha=args.alpha)
+                           rho=args.rho, alpha=args.alpha,
+                           refine=(args.provider == "asot+refine"),
+                           radius=args.radius, window=args.window)
     else:
         class_emb = np.load(args.class_emb)
         mean, _ = evaluate(ds, ids, provider_vlm, ignore=ignore,
