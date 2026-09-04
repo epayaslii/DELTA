@@ -12,7 +12,7 @@ those regularizers still apply, but inside the two-stage structure below.
 | "semantic should guide the sampling" + "cost is also important" | **do not encode every frame.** Use cheap text–image similarity to decide where to sample densely (near likely transitions) vs sparsely (inside stable segments). Compute budget is a first-class constraint. |
 | "semantic is enough for words, the video for [timing]" | **modality division of labour:** text/semantic embeddings settle *which* action (the "what"); video settles *where the cut is* (the "when"). Don't ask the text side to localize. |
 | "boundary contrastive losses" | Stage B uses a CVA-CBD-style loss — the transition frame's representation is invariant to surrounding context and distinct from adjacent + look-alike frames. |
-| "video llama3" | the VLM is **VideoLLaMA3** (SigLIP tower for embeddings; Chat model available for reasoning). |
+| "video llama3" | the VLM is **VideoLLaMA3** — explicitly *instead of* InternVideo2 (restated at the 2026-09-03 meeting). SigLIP-based vision tower for embeddings; Chat model for captions / reasoning. One model family for Stage 0, A, B. |
 | "you don't want to use the short term actions, top down strategies" | **top-down**, not bottom-up: localize from the whole transcript structure downward; do **not** build the alignment out of short-horizon / atomic action detections. |
 | "segments should be included in the vlm imports" | candidate segment spans are part of what is fed to the VLM, not bare frames. |
 | "recent paper: pass things on vlm, do reasoning in real time" | a reference for VLM-in-the-loop reasoning at inference — **[NEED: which paper]**. |
