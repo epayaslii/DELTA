@@ -115,3 +115,22 @@ encoder, not single frames, and (b) **weak-align-then-refine** — let the
 transcript prior carry the coarse structure (ASOT with a temporal prior, or the
 naive prior), use the VLM only for local boundary refinement. See
 `docs/method-weak-then-refine.md`.
+
+### Stage A with fused-GW OT — same features (2026-09-04)
+
+`delta.align.asot` (fused-GW OT + transcript temporal prior), same coarse
+SigLIP2 features, split-1 test:
+
+| method | MoC | F1@50 |
+|---|---|---|
+| naive-uniform | **0.366** | 26.2 |
+| hard DP on VLM sim | 0.199 | 6.7 |
+| **ASOT** (rho 0.5, alpha 0.1) | 0.342 | 22.9 |
+| ASOT (rho 0.3, alpha 0.3) | 0.323 | 17.7 |
+
+ASOT + the temporal prior **recovers the hard-DP collapse** (0.199 → 0.34) but
+still can't clear the naive prior: the GW structure term *hurts* (alpha↑ → MoC↓,
+the near-constant features blur), and `w_sem·(1−cos)` contributes almost nothing
+because SigLIP2 cosines vary only ~0.05 across actions. The Stage-A machinery is
+correct; **the features are the bottleneck** — next is V-JEPA2 / InternVideo2 +
+TASOT-style VLM captions (M-A4, cluster).

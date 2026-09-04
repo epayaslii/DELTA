@@ -19,6 +19,8 @@ from .masra import (
     EstaResult,
     LrcaResult,
 )
+from .asot import align_asot, segment_asot, decode, temporal_prior, monotonic_mask, AsotResult
+from .cost import fused_cost
 
 __all__ = [
     "mean_over_frames",
@@ -42,4 +44,11 @@ __all__ = [
     "masra_report",
     "EstaResult",
     "LrcaResult",
+    "align_asot",
+    "segment_asot",
+    "decode",
+    "temporal_prior",
+    "monotonic_mask",
+    "AsotResult",
+    "fused_cost",
 ]
