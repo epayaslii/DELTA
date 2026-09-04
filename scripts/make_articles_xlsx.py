@@ -158,48 +158,10 @@ FILLS = {
     "Baseline": "F8CBAD", "Citation": "EDEDED",
 }
 
-# ---- one-glance summary sheet (for the supervisor) --------------------------
+# ---- one-glance summary sheet, our own findings -----------------------------
 # Stage, What we do, Main source of inspiration, What we actually borrow, Links
 SUMMARY_HEADERS = ["Stage", "What we do", "Main source of inspiration",
                    "What we actually borrow", "Links"]
-SUMMARY = [
-    ("Input", "Raw video + ordered transcript", "DELTA",
-     "Same weak supervision: no timestamps / boundaries / durations",
-     "DELTA (internal)"),
-    ("Semantic front-end",
-     "Encode short video clips and transcript actions into a shared semantic space",
-     "OVTAS",
-     "Frozen VLM visual/text similarity idea",
-     "https://arxiv.org/abs/2602.21406"),
-    ("Stage A: coarse alignment",
-     "Build the cost and force actions to appear in transcript order",
-     "our existing monotonic DP + HiERO-StepG principle",
-     "Strict monotonic ordered alignment",
-     "https://arxiv.org/abs/2605.31227"),
-    ("Stage B1: segment extent",
-     "Find the confident temporal extent of each action around its coarse location",
-     "HiERO-StepG",
-     "Query-conditioned boundary / segment expansion",
-     "https://arxiv.org/abs/2605.31227"),
-    ("Stage B2: exact transition",
-     "Search specifically for the best crossover point",
-     "our formulation (+ CVA boundary-contrastive principle, MASRA LRCA)",
-     "Explicit GT-free semantic boundary localization",
-     "https://github.com/byeol3325/CVA_cvpr ; https://arxiv.org/abs/2605.03398"),
-    ("Optional Stage C",
-     "Improve frame / segment consistency if boundaries remain noisy",
-     "CLOT / D-CLOT",
-     "Closed-loop segment / frame / prototype refinement",
-     "https://openaccess.thecvf.com/content/ICCV2025/papers/Bueno-Benito_CLOT_Closed_Loop_Optimal_Transport_for_Unsupervised_Action_Segmentation_ICCV_2025_paper.pdf ; https://arxiv.org/abs/2608.05877"),
-    ("Optional Stage D",
-     "Reason only about difficult boundaries",
-     "TOGA / VideoLLaMA3",
-     "Expensive local VLM reasoning, selectively",
-     "https://arxiv.org/abs/2506.09445 ; https://arxiv.org/abs/2501.13106"),
-    ("Output", "Convert refined boundaries into dense Y*", "DELTA",
-     "Preserve the existing downstream interface", "DELTA (internal)"),
-]
-
 
 # ---- our own full plan, in the same simplified column format -------------
 OURS = [
@@ -282,14 +244,19 @@ def build():
         cell = ws0.cell(1, c, h)
         cell.font, cell.fill = hfont, hfill
         cell.alignment = Alignment(vertical="center", wrap_text=True)
-    for r, row in enumerate(SUMMARY, 2):
+    link_font = Font(color="0563C1", underline="single")
+    for r, row in enumerate(OURS, 2):
         for c, val in enumerate(row, 1):
             cell = ws0.cell(r, c, val)
             cell.alignment = Alignment(vertical="top", wrap_text=True)
-    for i, w in enumerate([22, 40, 30, 36, 46], 1):
+        if row[4] and " ; " not in row[4]:
+            lc = ws0.cell(r, 5)
+            lc.hyperlink = row[4]
+            lc.font = link_font
+    for i, w in enumerate([26, 46, 26, 40, 52], 1):
         ws0.column_dimensions[get_column_letter(i)].width = w
     ws0.freeze_panes = "A2"
-    ws0.auto_filter.ref = f"A1:{get_column_letter(len(SUMMARY_HEADERS))}{len(SUMMARY) + 1}"
+    ws0.auto_filter.ref = f"A1:{get_column_letter(len(SUMMARY_HEADERS))}{len(OURS) + 1}"
 
     ws = wb.create_sheet("Full detail")
 
