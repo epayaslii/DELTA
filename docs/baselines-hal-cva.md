@@ -9,7 +9,7 @@ Consequences:
 - **HAL is dropped as a workstream.** It is ATBA + a variational regulariser —
   still "alignment *through* a trained frame classifier". Kept only as a
   *baseline number* (its paper's Breakfast MoF; it never ran 50Salads).
-- **Eliz → MASRA** (this doc, `masra` section). Co-intern → CVA.
+- **MASRA workstream** (this doc, `masra` section). CVA is the parallel workstream.
   Both are **VLM video-text alignment** (from grounding), adapted to
   transcript-supervised 50Salads.
 - Method: frozen **InternVideo2** transcript×frame similarity → **MASRA-style
@@ -134,7 +134,7 @@ population status **[UNKNOWN]**).
 
 ### Ablation (QVHighlights, R1@0.7): baseline 46.77 → +QCD 51.98 → +CTE 52.63 → +CBD 53.02 → all 54.84.
 
-**Role for us:** the aligner reference (co-intern). CBD + CTE are the
+**Role for us:** the aligner reference (parallel workstream). CBD + CTE are the
 transferable ingredients.
 
 ---
@@ -208,7 +208,7 @@ for picking the frame/clip backbone (M-A4).
 - **Eliz → MASRA.** Adapt LRCA/ESTA into a training-time regulariser on the
   InternVideo2 transcript×frame similarity for 50Salads; then order-preserving
   alignment (ASOT) → `Y*` → DELTA. Plan M1–M7 below.
-- **Co-intern → CVA.** Build the VLM aligner: CTE encoder + CBD boundary loss.
+- **CVA workstream.** Build the VLM aligner: CTE encoder + CBD boundary loss.
 - **Synergy:** CVA produces the alignment; MASRA (as HAL did on the segmentation
   side) is an auxiliary training signal that improves it. Both use InternVideo2.
   Measured on TA metrics, then downstream MoC.

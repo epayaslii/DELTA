@@ -65,7 +65,7 @@ Feed `Y*` to DELTA's decoder (CTC / CRF / duration unchanged) → Obs%/Pred% MoC
 |---|---|
 | ASOT (in DELTA `wclot`) | Stage A weak alignment |
 | **MASRA** LRCA / ESTA | Stage 0 semantic sim + Stage B semantic-relational refinement (Eliz) |
-| **CVA** CBD / CTE | Stage B boundary contrastive loss + local encoder (co-intern) |
+| **CVA** CBD / CTE | Stage B boundary contrastive loss + local encoder (parallel workstream) |
 | HAL | baseline number only |
 
 ## Cost argument

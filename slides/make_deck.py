@@ -1,4 +1,4 @@
-"""Generate the progress deck for Mariella. python-pptx, 16:9."""
+"""Generate the progress deck. python-pptx, 16:9."""
 from pptx import Presentation
 from pptx.util import Inches, Pt
 from pptx.dml.color import RGBColor
@@ -127,7 +127,6 @@ box = s.shapes.add_textbox(Inches(0.8), Inches(3.1), Inches(11.7), Inches(2.5))
 tf = _tf(box)
 for i, line in enumerate([
     "Eliz Payasli — research internship, IRI / UPC",
-    "Advisor: Mariella Dimiccoli",
     "Base work: DELTA — Dense Long-Term Action Anticipation from Procedural Transcripts",
     "Repository: github.com/epayaslii/DELTA",
 ]):
@@ -146,7 +145,7 @@ bullets("Where we are — one slide", [
     (0, "Done: research repo + infrastructure, 50Salads analysis, a VLM-direct aligner prototype "
         "(21 tests); deep-read of the DELTA code (received); analysed the CVPR'25/26 VLM-alignment "
         "literature (HAL, CVA, MASRA, TAN, StepFormer, OVTAS, MLLM4WTAL)."),
-    (0, "Workstream split:  Eliz → MASRA  ·  co-intern → CVA.  Both are VLM video-text alignment."),
+    (0, "Workstream split:  MASRA track  ·  CVA track.  Both are VLM video-text alignment."),
     (1, "HAL was analysed then dropped — it is ATBA + a regulariser, still segmentation-based."),
     (0, "Blocker: raw 50Salads video for VLM feature extraction (official host down)."),
     (0, "Next: start building MASRA + its VLM tomorrow."),
@@ -173,7 +172,7 @@ bullets("The research framing", [
     (1, "frozen VLM:  s(n, t) = sim( text(action_n), video_t )  →  order-preserving alignment  →  Y*"),
     (1, "no frame classifier; the fine-grained vocabulary is disambiguated by the noun, from step 0."),
     (0, "Two CVPR'25/26 papers do exactly this for video temporal grounding, and we adapt them:"),
-    (1, "CVA (CVPR'26) — the aligner: hierarchical encoder + boundary-contrastive loss.  (co-intern)"),
+    (1, "CVA (CVPR'26) — the aligner: hierarchical encoder + boundary-contrastive loss."),
     (1, "MASRA (2026) — the language regulariser: align a text relation-matrix to the video similarity "
         "matrix; MLLM used at training only, discarded at inference.  (Eliz)"),
 ], sub="the TA must use a VLM  ·  CVA + MASRA as the references")
@@ -248,7 +247,7 @@ table_slide("Progress 5 — VLM-alignment literature (analysed)",
     [
         ["ATBA", "CVPR'24", "the classifier→DP alignment DELTA's TA follows", "the baseline we replace"],
         ["HAL", "CVPR'26", "= ATBA + a VAE regulariser; +2–3 MoF; segmentation-based; skips 50Salads", "analysed, then DROPPED (no-segmentation)"],
-        ["CVA", "CVPR'26", "VLM video-text alignment for grounding; hierarchical encoder + boundary-contrastive loss; SOTA", "co-intern — the VLM aligner"],
+        ["CVA", "CVPR'26", "VLM video-text alignment for grounding; hierarchical encoder + boundary-contrastive loss; SOTA", "the VLM aligner"],
         ["MASRA", "2026", "MLLM-assisted alignment: align a text relation-matrix to the video similarity matrix; MLLM train-only", "Eliz — the language regulariser"],
         ["TAN / StepFormer", "CVPR'22/'23", "the genuine transcript/sequence→video aligners (weak/self-sup)", "the alignment mechanism references"],
     ],
@@ -267,20 +266,20 @@ bullets("Progress 6 — the two VLM-alignment references", [
     (1, "ESTA — align pooled temporal context with action/event semantics"),
     (1, "MLLM used ONLY at training, discarded at inference  (= DELTA's philosophy)."),
     (0, "Both: grounding, supervised, not procedural — we adapt them to transcript-supervised 50Salads."),
-], sub="CVA = the aligner (co-intern)   ·   MASRA = the language regulariser (Eliz)")
+], sub="CVA = the aligner   ·   MASRA = the language regulariser")
 
 # ------------------------------------------------------------------ 11. THE SPLIT
 bullets("Scoping — the workstream split", [
     (0, "Supervisor's direction: the TA must use a VLM; no segmentation-based approach."),
     (0, ""),
-    (0, "Co-intern → CVA:  build the VLM aligner — CTE encoder + CBD boundary-contrastive loss."),
+    (0, "CVA track:  build the VLM aligner — CTE encoder + CBD boundary-contrastive loss."),
     (0, "Eliz → MASRA:  the training-time language regulariser — LRCA / ESTA — that shapes the "
         "video↔transcript similarity, then an order-preserving alignment reads Y* off it."),
     (0, ""),
     (0, "Structurally: CVA produces the alignment; MASRA (like HAL did on the segmentation side) "
         "is an auxiliary training signal that improves it — measured on TA metrics, then downstream MoC."),
     (0, "VLM for both: InternVideo2 (video-native) instead of CVA/MASRA's SlowFast + frame-CLIP."),
-], sub="Eliz → MASRA   ·   co-intern → CVA   ·   both VLM")
+], sub="MASRA track   ·   CVA track   ·   both VLM")
 
 # ------------------------------------------------------------------ 12. TAKEAWAYS
 bullets("Key takeaways", [
@@ -343,17 +342,17 @@ bullets("The full method — where CVA + MASRA land", [
     (0, "s(n,t) = cos( InternVideo2_text(action_n), InternVideo2_video(clip_t) )  — frozen, video-native, no classifier."),
     (0, "+ MASRA (Eliz):  LRCA / ESTA training-time losses that shape s toward the transcript's "
         "semantic-relational structure; MLLM at train only."),
-    (0, "+ CVA (co-intern):  CTE-style encoder on the VLM features; CBD boundary-contrastive loss on "
+    (0, "+ CVA:  CTE-style encoder on the VLM features; CBD boundary-contrastive loss on "
         "the aligned boundary frames."),
     (0, "Order-preserving alignment on s (ASOT — already in DELTA as --model_type wclot, ~1 line to "
         "swap the cost matrix)  →  Y*."),
     (0, "Y*  →  DELTA decoder + CRF + duration head (unchanged)  →  Obs%/Pred% MoC on 50Salads."),
     (0, "Contribution: VLM-direct transcript→frame alignment for weakly-supervised dense anticipation — unaddressed."),
-], sub="InternVideo2 similarity  +  MASRA regulariser (Eliz)  +  CVA aligner (co-intern)  →  DELTA")
+], sub="InternVideo2 similarity  +  MASRA regulariser  +  CVA aligner  →  DELTA")
 
 # ------------------------------------------------------------------ 18. SEQUENCING
 table_slide("Sequencing — two VLM tracks, 50Salads",
-    ["When", "Eliz — MASRA", "Co-intern — CVA"],
+    ["When", "MASRA track", "CVA track"],
     [
         ["Tomorrow", "M1: get MASRA code; reproduce on TACoS; read LRCA / ESTA / DAI", "get CVA code; reproduce on QVHighlights / TACoS"],
         ["+1–2 wk", "M2: internvideo2 backbone; chase raw 50S video; build s once available", "isolate CTE + CBD as reusable modules"],
@@ -385,7 +384,7 @@ r.text = ("Docs: temporal-alignment.md · 50salads-notes.md · delta-code.md · 
           "baselines-hal-cva.md · approach.md")
 r.font.size = Pt(13); r.font.name = FONT; r.font.color.rgb = RGBColor(0xC9, 0xD6, 0xE3)
 
-out = "/Users/elizpayasli/Documents/GitHub/DELTA/slides/DELTA_progress_Mariella.pptx"
+out = "/Users/elizpayasli/Documents/GitHub/DELTA/slides/DELTA_progress.pptx"
 import os
 os.makedirs(os.path.dirname(out), exist_ok=True)
 prs.save(out)

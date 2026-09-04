@@ -8,7 +8,7 @@
 
 ## 1. Where we start: DELTA and its 50Salads gap
 
-DELTA (Maté & Dimiccoli) does **dense long-term action anticipation (DLTA)** —
+DELTA does **dense long-term action anticipation (DLTA)** —
 predict a *frame-level* labelling of a future horizon — trained from **transcripts
 only**: an ordered list of actions with **no timestamps and no durations**. One
 shared transformer encoder feeds three branches:
@@ -108,7 +108,7 @@ opening.
   segmentation from a noisy frame↔class cost matrix via a Gromov-Wasserstein
   problem with a temporal-consistency prior; GPU-friendly (few mirror-descent
   iters). Directly relevant as an *alignment decoder* to replace greedy DP.
-- **CLOT — Closed-Loop Optimal Transport** (Bueno-Benito & Dimiccoli, ICCV 2025)
+- **CLOT — Closed-Loop Optimal Transport** (ICCV 2025)
   — *from the same lab*; unsupervised action segmentation via a closed OT loop.
 - **Joint Self-Supervised Video Alignment and Action Segmentation** (Ali et al.,
   ICCV 2025) — one **fused Gromov-Wasserstein OT** model with a structural prior
@@ -259,11 +259,11 @@ text · DP vs OT alignment · hard vs uncertainty-aware boundaries · vs ATBA/HA
 
 ## References (short)
 
-DELTA — Maté & Dimiccoli. · ATBA — Xu & Zheng, CVPR 2024. · HAL — Huang et al.,
+DELTA. · ATBA — Xu & Zheng, CVPR 2024. · HAL — Huang et al.,
 CVPR 2026. · MuCon — Souri et al., TPAMI 2021. · NN-Viterbi — Richard et al.,
 CVPR 2018. · TCC — Dwibedi et al., CVPR 2019. · VAVA — Liu et al., CVPR 2022. ·
 GTCC — Donahue & Kambhamettu, CVPR 2023. · Temporally-Consistent Unbalanced OT —
-Xu & Gould, CVPR 2024. · CLOT — Bueno-Benito & Dimiccoli, ICCV 2025. · Joint
+Xu & Gould, CVPR 2024. · CLOT — ICCV 2025. · Joint
 SSL Video Alignment & Action Segmentation — Ali et al., ICCV 2025 (arXiv
 2503.16832). · VideoLLaMA 3 — Zhang et al., 2025 (arXiv 2501.13106). ·
 InternVideo2 — Wang et al., 2024. · SigLIP 2 — Tschannen et al., 2025. ·

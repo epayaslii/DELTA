@@ -1,7 +1,7 @@
 # DELTA — multimodal self-supervised temporal alignment
 
 Follow-up to **DELTA: Dense Long-Term Action Anticipation from Procedural
-Transcripts** (Maté & Dimiccoli, UPC-IRI). That work learns dense long-term
+Transcripts** (UPC-IRI). That work learns dense long-term
 action anticipation (DLTA) from *transcripts only* — ordered action lists with
 no timestamps — via a temporal-alignment (TA) module that turns transcripts into
 dense pseudo-labels, plus CTC sequence-consistency and locally-masked crossmodal
