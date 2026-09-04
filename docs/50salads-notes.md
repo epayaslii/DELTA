@@ -132,8 +132,8 @@ ASOT + the temporal prior **recovers the hard-DP collapse** (0.199 → 0.34) but
 still can't clear the naive prior: the GW structure term *hurts* (alpha↑ → MoC↓,
 the near-constant features blur), and `w_sem·(1−cos)` contributes almost nothing
 because SigLIP2 cosines vary only ~0.05 across actions. The Stage-A machinery is
-correct; **the features are the bottleneck** — next is V-JEPA2 / InternVideo2 +
-TASOT-style VLM captions (M-A4, cluster).
+correct; **the features are the bottleneck** — next is VideoLLaMA3 features
+(supervisor's call) + TASOT-style VideoLLaMA3 captions (M-A4, cluster).
 
 ### Stage B1 — local semantic boundary search (2026-09-04)
 
@@ -150,5 +150,5 @@ attach a prominence confidence.
 mean confidence 0.27, only **5 % above 0.5**. Mean \|shift\| 21.6 frames. The
 search correctly reports it *cannot* confidently localise boundaries from these
 features — which is (a) the right diagnostic, (b) exactly the input Stage B3
-needs (route the low-confidence 95 % to a chat-VLM). Re-run once V-JEPA2 /
-InternVideo2 features exist.
+needs (route the low-confidence 95 % to a chat-VLM). Re-run once VideoLLaMA3
+features exist.

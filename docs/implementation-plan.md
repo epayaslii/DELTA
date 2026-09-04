@@ -25,7 +25,7 @@ refinement (Stage B2) is our own objective, **not** a reuse of CVA's CBD.
 | **B** relational sharpening | LRCA / ESTA on local windows | **MASRA** (ACM'26) | `delta.align.masra_torch`, already built |
 | **B3** hard-case reasoning | pseudo temporal grounding + consistency, no GT timestamps | **TOGA** (2506.09445) | call a chat-VLM only on low-confidence boundaries, locally |
 | **C** frame↔segment feedback | closed-loop OT refinement | **CLOT / D-CLOT** | transcript-defined segment identities, not anonymous clusters — *V3 only* |
-| features | video-native embeddings | **V-JEPA2** (D-CLOT release) / InternVideo2 | replace single-frame SigLIP2 |
+| features | video-native embeddings | **VideoLLaMA3** (supervisor's call, last meeting — vision tower for `s`, chat model for captions/reasoning). **V-JEPA2** (D-CLOT release) optional as a pure-visual structure term. NOT InternVideo2. | replace single-frame SigLIP2 |
 | output | dense pseudo-labels `Y*` | **DELTA interface** | boundaries → per-frame labels, unchanged downstream |
 
 ### ⚠️ Correction on CVA CBD
@@ -52,7 +52,9 @@ delta.align.cbd         DONE PBCR objective (torch) -- contrastive on *predicted
                              boundaries; needs confidence weighting (Stage B2)
 delta.align.masra_torch DONE ESTA / LRCA / MasraRegularizer
 delta.align.ta          DONE align_dp / align_soft  (hard-DP baseline)
-delta.features.extract  DONE + --every N ; add vjepa2 / internvideo2 backbones (cluster)
+delta.features.extract  DONE + --every N ; add a videollama3 backbone (cluster;
+                             VL3-SigLIP-NaViT needs transformers 4.x -> pin in the
+                             cluster env). V-JEPA2 optional.
 ```
 
 ## Version ladder (peer review)
@@ -77,8 +79,8 @@ delta.features.extract  DONE + --every N ; add vjepa2 / internvideo2 backbones (
 - **M-B1b** ✅ `delta.align.refine` — local semantic boundary search (V1 core).
   On coarse SigLIP2: +0.01 MoC, but 95 % of boundaries low-confidence → the
   confidence signal correctly flags "features too weak"; feeds B3 routing.
-- **M-A4** ← **next**: V-JEPA2 / InternVideo2 features + TASOT VLM captions —
-  re-run M-A3 + M-B1b. *cluster*
+- **M-A4** ← **next**: VideoLLaMA3 features (+ optional V-JEPA2 structure term)
+  + TASOT-style VideoLLaMA3 captions — re-run M-A3 + M-B1b. *cluster*
 - **M-B2** PBCR loop with confidence weighting. *cluster (training)*
 - **M-B3** TOGA-style chat-VLM on low-confidence boundaries. *cluster*
 - **M-C** best `Y*` → DELTA decoder (`wclot`/`atba` unchanged) → Obs%/Pred% MoC.
