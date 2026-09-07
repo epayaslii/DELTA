@@ -189,6 +189,69 @@ class SigLIP2(_HFImageTower):
         return feats
 
 
+@register("videollama3")
+class VideoLLaMA3Vision(_HFImageTower):
+    """VideoLLaMA3 vision tower (``DAMO-NLP-SG/VL3-SigLIP-NaViT``).
+
+    **Requires transformers 4.x on the cluster.** Its remote code imports
+    ``VideoInput`` from ``transformers.image_utils``, which was removed in
+    transformers 5 -- loading under 5.x raises ImportError. Pin ``transformers<5``
+    in the extraction environment.
+
+    **Open question -- verify before trusting the similarity.** This tower was
+    fine-tuned from SigLIP for use with an LLM decoder; it is *not* guaranteed to
+    still share a contrastive space with SigLIP's text tower. Before running a
+    full extraction, run::
+
+        python scripts/verify_backbone_alignment.py --backbone videollama3
+
+    which checks that ``cos(action_text, frame)`` actually separates correct from
+    incorrect actions. If it does not, use this backbone for *visual structure*
+    only and get the semantic term from VideoLLaMA3-Chat captions instead
+    (TASOT-style) -- see ``docs/implementation-plan.md``.
+    """
+
+    model_id = "DAMO-NLP-SG/VL3-SigLIP-NaViT"
+    pool = "mean"
+
+    def _build(self) -> None:
+        from transformers import AutoImageProcessor, AutoModel
+
+        try:
+            self.processor = AutoImageProcessor.from_pretrained(
+                self.model_id, trust_remote_code=True
+            )
+        except ImportError as e:  # transformers 5.x vs the model's remote code
+            raise RuntimeError(
+                f"{self.model_id} needs transformers<5 (its remote code imports "
+                f"transformers.image_utils.VideoInput, removed in v5). "
+                f"`pip install 'transformers<5'` in the extraction env. Original: {e}"
+            ) from e
+        self.model = AutoModel.from_pretrained(
+            self.model_id, trust_remote_code=True, torch_dtype=self.torch_dtype
+        ).to(self.device)
+        self.model.eval()
+        self._dim = self._infer_dim()
+
+    def _forward(self, frames_uint8: np.ndarray) -> torch.Tensor:
+        from PIL import Image
+
+        imgs = [Image.fromarray(f) for f in frames_uint8]
+        # NaViT keeps the native patch grid; merge_size=1 = no token merging
+        inputs = self.processor(images=imgs, merge_size=1, return_tensors="pt")
+        inputs = {k: (v.to(self.device) if torch.is_tensor(v) else v)
+                  for k, v in inputs.items()}
+        with torch.autocast(device_type=self.device.split(":")[0], dtype=self.torch_dtype):
+            out = self.model(**inputs)
+        feats = out[0] if isinstance(out, (tuple, list)) else self._pool(out)
+        if feats.dim() == 3:                      # (N, L, D) -> pool tokens
+            feats = feats.mean(dim=1)
+        elif feats.dim() == 2 and feats.shape[0] != len(imgs):
+            # NaViT can return flat (sum_L, D); regroup per image
+            feats = feats.view(len(imgs), -1, feats.shape[-1]).mean(dim=1)
+        return feats
+
+
 @register("dinov2")
 class DINOv2(_HFImageTower):
     model_id = "facebook/dinov2-large"

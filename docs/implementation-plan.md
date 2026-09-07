@@ -75,6 +75,13 @@ delta.features.extract  DONE + --every N ; add a videollama3 backbone (cluster;
 
 - **M-A1..3** ✅ ASOT + fused cost + measured (2026-09-04): recovers the hard-DP
   collapse (0.199 → 0.34), still < naive (0.37). **Bottleneck = features.**
+- **M-0** ✅ `delta.features.sampling` — semantic-guided adaptive sampling
+  (2026-09-04). On coarse SigLIP2, split-1: **85.3 % of frames skipped**, but
+  only **32.2 % of GT boundaries land inside a refined zone** — driven by the
+  same weak similarity as everything else. **Watch this number when VideoLLaMA3
+  features land**: if coverage stays low, widen `radius` / `zones_per_boundary`
+  or skip adaptive sampling and encode uniformly, because a boundary outside
+  every zone can never be recovered by Stage B1.
 - **M-B1** ✅ `delta.align.cbd` (PBCR objective, torch, tests)
 - **M-B1b** ✅ `delta.align.refine` — local semantic boundary search (V1 core).
   On coarse SigLIP2: +0.01 MoC, but 95 % of boundaries low-confidence → the
