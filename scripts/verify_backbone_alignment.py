@@ -8,7 +8,8 @@ Three checks, on a handful of real 50Salads frames with known labels:
 
   1. text<->image cosines land in a plausible range (not ~0, not all identical)
   2. frames vary across time (a near-constant encoder carries no signal)
-  3. the GT action beats a random other action more often than chance
+  3. the GT action beats every RIVAL action in its own transcript often enough
+     (calibrated against siglip2, a backbone we measured as inadequate)
 
 Usage
 -----
@@ -115,11 +116,10 @@ def main(argv=None):
     else:
         print("   ok - frames vary over time")
 
-    # Calibration: siglip2 measures 27.1% here (split-1, 2026-09-04) and its alignment
-    # lands at MoC 0.342,
-    # BELOW the naive-uniform floor of 0.366 (docs/50salads-notes.md). So ~0.30 is
-    # a known-inadequate backbone. A backbone worth extracting has to clear it
-    # clearly, not just beat chance.
+    # Calibration: siglip2 measures 27.1% here (split-1, 2026-09-04), and its
+    # alignment lands at MoC 0.342 -- BELOW the naive-uniform floor of 0.366
+    # (docs/50salads-notes.md). So ~27% is a known-inadequate backbone; one worth
+    # extracting has to clear that clearly, not merely beat chance.
     chance = 1.0 / max(len(names), 2)
     print(f"3. GT action beats every rival in its own transcript: {pairwise:.2%}")
     print(f"   (chance ~ {chance:.0%}; siglip2 measures 27.1% and is known to lose "
