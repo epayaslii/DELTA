@@ -77,11 +77,18 @@ def main(argv=None):
         all_ti.append(sim)
         all_ff.append(f @ f.T)
 
-        # does the GT action beat a random wrong action?
-        rng = np.random.default_rng(0)
+        # HARD test: does the GT action beat the other actions *in this
+        # transcript*? Beating a random action from the whole vocabulary is
+        # trivial (cut_tomato vs add_dressing); the aligner's real job is
+        # separating the actions that actually compete inside one video.
+        tr = [c for c in dict.fromkeys(rec.transcript) if c < len(names)]
         for j, g in enumerate(gt):
-            other = rng.choice([c for c in range(len(names)) if c != g])
-            hits += sim[g, j] > sim[other, j]
+            if g not in tr:
+                continue
+            rivals = [c for c in tr if c != g]
+            if not rivals:
+                continue
+            hits += sim[g, j] > max(sim[c, j] for c in rivals)
             total += 1
         print(f"  {vid}: ti-cos mean {sim.mean():+.3f}  "
               f"range [{sim.min():+.3f}, {sim.max():+.3f}]")
@@ -108,13 +115,25 @@ def main(argv=None):
     else:
         print("   ok - frames vary over time")
 
-    print(f"3. GT action beats a random action: {pairwise:.2%} (chance = 50%)")
-    if pairwise < 0.55:
-        print("   FAIL - the semantic term carries almost no information. "
-              "Switch to caption-based semantics before extracting everything.")
+    # Calibration: siglip2 measures 27.1% here (split-1, 2026-09-04) and its alignment
+    # lands at MoC 0.342,
+    # BELOW the naive-uniform floor of 0.366 (docs/50salads-notes.md). So ~0.30 is
+    # a known-inadequate backbone. A backbone worth extracting has to clear it
+    # clearly, not just beat chance.
+    chance = 1.0 / max(len(names), 2)
+    print(f"3. GT action beats every rival in its own transcript: {pairwise:.2%}")
+    print(f"   (chance ~ {chance:.0%}; siglip2 measures 27.1% and is known to lose "
+          f"to the naive floor)")
+    if pairwise < 0.35:
+        print("   FAIL - at or below the siglip2 level, which we already measured "
+              "as worse than naive-uniform. Do not spend GPU hours on a full "
+              "extraction; use caption-based semantics instead.")
         ok = False
+    elif pairwise < 0.50:
+        print("   WARN - better than siglip2 but still weak. Extract, but expect "
+              "Stage A to lean on the temporal prior rather than the semantics.")
     else:
-        print("   ok - the semantic term is informative")
+        print("   ok - the semantic term is genuinely informative")
 
     print("\n" + ("PASS - safe to run the full extraction"
                   if ok else "DO NOT EXTRACT YET - fix the above first"))
