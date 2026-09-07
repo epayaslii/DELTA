@@ -71,6 +71,58 @@ def extract_one(rec, backbone, sampler: FrameSampler, label_fps: float, l2norm: 
     return feats.astype(np.float32).T                      # (D, T)  -- I3D layout
 
 
+def extract_adaptive(rec, backbone, sampler: FrameSampler, label_fps: float, l2norm: bool,
+                     class_emb: np.ndarray, coarse_every: int = 30, dense_every: int = 2,
+                     radius: int = 90) -> tuple[np.ndarray, dict]:
+    """Stage 0 -- semantic-guided two-pass extraction.
+
+    Pass 1 encodes a cheap coarse grid. Its transcript x frame similarity says
+    where the transitions probably are; pass 2 re-encodes only those
+    neighbourhoods densely. Everything else is nearest-filled from the coarse
+    pass. See `delta.features.sampling` and `docs/method-weak-then-refine.md`.
+
+    Returns ``((D, T) features, stats)``.
+    """
+    from delta.align.similarity import similarity_matrix, transcript_text_embeddings
+    from delta.features.sampling import adaptive_frame_plan
+
+    reader = VideoReader(str(rec.video_path))
+    try:
+        T = target_length(rec, reader, label_fps)
+        plan = sampler.plan(reader.num_frames, T)                    # (T, window)
+
+        coarse = np.arange(0, T, max(1, coarse_every))               # pass 1
+        f_coarse = backbone.encode(reader.get_batch(plan[coarse].reshape(-1)))
+        f_coarse = f_coarse.reshape(len(coarse), plan.shape[1], -1).mean(axis=1)
+
+        txt = transcript_text_embeddings(rec.transcript, class_emb)
+        s = similarity_matrix(txt, f_coarse)                         # (N, T_coarse)
+        dp = adaptive_frame_plan(s, coarse, T, len(rec.transcript),
+                                 dense_every=dense_every, radius=radius)
+
+        dense = dp.dense_frames[~np.isin(dp.dense_frames, coarse)]   # pass 2, skip dupes
+        if dense.size:
+            f_dense = backbone.encode(reader.get_batch(plan[dense].reshape(-1)))
+            f_dense = f_dense.reshape(len(dense), plan.shape[1], -1).mean(axis=1)
+        else:
+            f_dense = np.zeros((0, f_coarse.shape[1]), dtype=f_coarse.dtype)
+    finally:
+        reader.close()
+
+    have = np.concatenate([coarse, dense])                           # encoded positions
+    feats = np.concatenate([f_coarse, f_dense])
+    order = np.argsort(have)
+    have, feats = have[order], feats[order]
+
+    nn = np.clip(np.searchsorted(have, np.arange(T), side="right") - 1, 0, len(have) - 1)
+    feats = feats[nn]                                                # nearest-fill to (T, D)
+    if l2norm:
+        feats = feats / (np.linalg.norm(feats, axis=1, keepdims=True) + 1e-8)
+    stats = {"n_encoded": int(have.size), "n_full_rate": int(T),
+             "saving": round(1.0 - have.size / max(T, 1), 4), "n_zones": len(dp.zones)}
+    return feats.astype(np.float32).T, stats
+
+
 def select_ids(ds: ActionSegDataset, args) -> list[str]:
     if args.ids:
         return args.ids
@@ -100,6 +152,11 @@ def main(argv=None):
     p.add_argument("--batch-size", type=int, default=64)
     p.add_argument("--every", type=int, default=1,
                    help="encode every N-th label position, nearest-fill the rest (1/N compute)")
+    p.add_argument("--adaptive", action="store_true",
+                   help="Stage 0: coarse pass, then re-encode only likely-transition zones")
+    p.add_argument("--coarse-every", type=int, default=30, help="--adaptive: coarse grid step")
+    p.add_argument("--dense-every", type=int, default=2, help="--adaptive: step inside a zone")
+    p.add_argument("--zone-radius", type=int, default=90, help="--adaptive: +- frames per zone")
     p.add_argument("--overwrite", action="store_true")
     p.add_argument("--text-only", action="store_true", help="only dump action-name embeddings")
     p.add_argument("--limit", type=int, help="debug: process at most N videos")
@@ -175,8 +232,16 @@ def main(argv=None):
                 continue
             t0 = time.time()
             try:
-                feats = extract_one(rec, backbone, sampler, sampler.label_fps, l2norm,
-                                    every=args.every)
+                if args.adaptive:
+                    feats, astats = extract_adaptive(
+                        rec, backbone, sampler, sampler.label_fps, l2norm,
+                        class_emb=np.load(text_path),
+                        coarse_every=args.coarse_every, dense_every=args.dense_every,
+                        radius=args.zone_radius)
+                else:
+                    astats = {}
+                    feats = extract_one(rec, backbone, sampler, sampler.label_fps, l2norm,
+                                        every=args.every)
             except Exception as e:  # keep the array job alive
                 print(f"  !! {vid}: {type(e).__name__}: {e}")
                 failed += 1
@@ -186,6 +251,7 @@ def main(argv=None):
             rowsrc = {
                 "video_id": vid, "shape": list(feats.shape), "dt": round(time.time() - t0, 2),
                 "n_label_frames": rec.num_label_frames, "transcript_len": len(rec.transcript or []),
+                **astats,
             }
             mf.write(json.dumps(rowsrc) + "\n")
             mf.flush()
