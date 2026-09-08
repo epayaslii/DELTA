@@ -167,17 +167,16 @@ bullets("The problem, briefly", [
 # ------------------------------------------------------------------ 3. FRAMING
 bullets("The research framing", [
     (0, "ATBA / HAL — \"alignment THROUGH segmentation\"  (ruled out by your no-segmentation guidance):"),
-    (1, "frozen I3D  →  trained frame classifier  →  posteriors P  →  boundary/transition scores  →  DP  →  Y*"),
+    (1, "frozen I3D  →  trained frame classifier  →  posteriors  →  boundary scores  →  DP  →  Y*"),
     (1, "the alignment can be no better than that classifier — and on 50Salads (fixed camera, "
-        "near-duplicate cut_* / add_* actions) it is a near-worst case."),
-    (0, "Our direction — \"alignment THROUGH semantic matching\":"),
-    (1, "frozen VLM:  s(n, t) = sim( text(action_n), video_t )  →  order-preserving alignment  →  Y*"),
-    (1, "no frame classifier; the fine-grained vocabulary is disambiguated by the noun, from step 0."),
-    (0, "Two CVPR'25/26 papers do exactly this for video temporal grounding, and we adapt them:"),
-    (1, "CVA (CVPR'26) — the aligner: hierarchical encoder + boundary-contrastive loss."),
-    (1, "MASRA (2026) — the language regulariser: align a text relation-matrix to the video similarity "
-        "matrix; MLLM used at training only, discarded at inference.  (Eliz)"),
-], sub="the TA must use a VLM  ·  CVA + MASRA as the references")
+        "near-duplicate cut_* / add_* actions) that is close to a worst case."),
+    (0, "Our direction — \"weak alignment, then refine\", built as a HYBRID rather than one paper:"),
+    (1, "semantic front-end (OVTAS idea)  →  coarse ordered alignment (monotonic DP + HiERO-StepG)  "
+        "→  local boundary search (ours)  →  contrastive refinement (CVA principle + MASRA LRCA)"),
+    (1, "optional fallbacks: CLOT / D-CLOT for noisy boundaries, TOGA / VideoLLaMA3 reasoning for hard ones."),
+    (0, "No single paper covers {weak supervision} × {VLM} × {ordered transcript alignment} — "
+        "each stage borrows the piece that fits, and the boundary search is our own."),
+], sub="weak alignment → refine  ·  a hybrid, stage by stage")
 
 # ------------------------------------------------------------------ 4. THE REPO
 table_slide("What's built — the repository",
@@ -250,7 +249,7 @@ table_slide("Progress 5 — VLM-alignment literature (analysed)",
         ["ATBA", "CVPR'24", "the classifier→DP alignment DELTA's TA follows", "the baseline we replace"],
         ["HAL", "CVPR'26", "= ATBA + a VAE regulariser; +2–3 MoF; segmentation-based; skips 50Salads", "analysed, then DROPPED (no-segmentation)"],
         ["CVA", "CVPR'26", "VLM video-text alignment for grounding; hierarchical encoder + boundary-contrastive loss; SOTA", "the VLM aligner"],
-        ["MASRA", "2026", "MLLM-assisted alignment: align a text relation-matrix to the video similarity matrix; MLLM train-only", "Eliz — the language regulariser"],
+        ["MASRA", "2026", "MLLM-assisted alignment: align a text relation-matrix to the video similarity matrix; MLLM train-only", "Stage B2 — relational training signal"],
         ["TAN / StepFormer", "CVPR'22/'23", "the genuine transcript/sequence→video aligners (weak/self-sup)", "the alignment mechanism references"],
     ],
     sub="no single paper = {weak supervision} × {VLM alignment} × {long-term anticipation}  →  that is the contribution",
@@ -271,17 +270,18 @@ bullets("Progress 6 — the two VLM-alignment references", [
 ], sub="CVA = the aligner   ·   MASRA = the language regulariser")
 
 # ------------------------------------------------------------------ 11. THE SPLIT
-bullets("Scoping — the workstream split", [
-    (0, "Supervisor's direction: the TA must use a VLM; no segmentation-based approach."),
-    (0, ""),
-    (0, "CVA track:  build the VLM aligner — CTE encoder + CBD boundary-contrastive loss."),
-    (0, "Eliz → MASRA:  the training-time language regulariser — LRCA / ESTA — that shapes the "
-        "video↔transcript similarity, then an order-preserving alignment reads Y* off it."),
-    (0, ""),
-    (0, "Structurally: CVA produces the alignment; MASRA (like HAL did on the segmentation side) "
-        "is an auxiliary training signal that improves it — measured on TA metrics, then downstream MoC."),
-    (0, "VLM for both: InternVideo2 (video-native) instead of CVA/MASRA's SlowFast + frame-CLIP."),
-], sub="MASRA track   ·   CVA track   ·   both VLM")
+bullets("The hybrid — which paper feeds which stage", [
+    (0, "Input:  raw video + ordered transcript, no timestamps  —  DELTA's weak-supervision setup."),
+    (0, "Semantic front-end:  frozen VLM clip↔action similarity  —  OVTAS."),
+    (0, "Stage A, coarse alignment:  force actions into transcript order  —  monotonic DP + "
+        "HiERO-StepG's strict monotonicity; solved with ASOT / CLOT optimal transport."),
+    (0, "Stage B1, segment extent:  confident temporal extent around each coarse location  —  HiERO-StepG."),
+    (0, "Stage B2, exact transition:  search for the best crossover point  —  OURS, with CVA's "
+        "boundary-contrastive principle and MASRA's LRCA as the training signal."),
+    (0, "Optional C:  frame/segment consistency if boundaries stay noisy  —  CLOT / D-CLOT."),
+    (0, "Optional D:  reason only about difficult boundaries  —  TOGA / VideoLLaMA3."),
+    (0, "Output:  dense Y* into the unchanged DELTA decoder."),
+], sub="VideoLLaMA3 as the encoder throughout  ·  full table in articles-by-pipeline-part.xlsx")
 
 # ------------------------------------------------------------------ 12. TAKEAWAYS
 bullets("Key takeaways", [
@@ -300,7 +300,7 @@ bullets("Key takeaways", [
 table_slide("Blockers & risks",
     ["Item", "Impact", "Mitigation"],
     [
-        ["Raw 50Salads video unavailable", "blocks VLM feature extraction (the core of both tracks)", "chase a lab copy; meanwhile reproduce MASRA/CVA on TACoS (cooking VTG benchmark)"],
+        ["GPU / cluster access", "blocks VideoLLaMA3 extraction and the real ATBA / wclot baselines", "account + remote access confirmed before the on-site weeks end"],
         ["No local GPU / torch", "no model runs on the Mac", "UPC cluster; one conda env"],
         ["MoF ≠ MoC", "a method can win on segmentation MoF and not help DELTA's anticipation MoC", "always measure pseudo-label MoC + boundary offset, then downstream MoC"],
         ["DELTA code is research-grade", "reproduction friction (missing script, paths, wandb)", "documented in docs/delta-code.md; map run scripts onto train.py"],
