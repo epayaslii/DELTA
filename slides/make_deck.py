@@ -256,18 +256,21 @@ table_slide("Progress 5 — VLM-alignment literature (analysed)",
     col_widths=[1.9, 1.0, 6.3, 2.9], font=9.5)
 
 # ------------------------------------------------------------------ 10. MASRA + CVA
-bullets("Progress 6 — the two VLM-alignment references", [
+bullets("Progress 6 — two papers we borrow components from", [
     (0, "CVA (CVPR'26) — Context-aware Video-text Alignment.  Task: video temporal grounding "
-        "(query → span), CLIP+SlowFast, SOTA.  Contribution = the aligner:"),
-    (1, "CTE hierarchical encoder (windowed self-attn + learnable queries + bidirectional cross-attn)"),
-    (1, "CBD boundary-contrastive loss + QCD query-aware augmentation."),
-    (0, "MASRA (2026) — MLLM-Assisted Semantic-Relational Consistent Alignment.  Same task, "
-        "CLIP + an MLLM.  Contribution = a training-time language regulariser:"),
-    (1, "LRCA — align a text relation-matrix (from MLLM captions) with the video's similarity matrix"),
-    (1, "ESTA — align pooled temporal context with action/event semantics"),
+        "(query → span), CLIP + SlowFast, SOTA, FULLY SUPERVISED:"),
+    (1, "CTE hierarchical encoder;  CBD boundary-contrastive loss;  QCD query-aware augmentation."),
+    (1, "Important: published CBD anchors on GROUND-TRUTH span boundaries and defines its negatives "
+        "relative to that span.  We cannot use it as-is."),
+    (1, "→ we keep only the principle — a boundary deserves its own contrastive representation — and "
+        "rebuild it on our own CONFIDENT pseudo-boundaries.  That is our objective (PBCR), not CVA's."),
+    (0, "MASRA (2026) — MLLM-Assisted Semantic-Relational Consistent Alignment.  Same task, also "
+        "fully supervised.  We take the training-time regularisers:"),
+    (1, "LRCA — align a text relation-matrix with the video's similarity matrix;  "
+        "ESTA — align pooled temporal context with action semantics."),
     (1, "MLLM used ONLY at training, discarded at inference  (= DELTA's philosophy)."),
-    (0, "Both: grounding, supervised, not procedural — we adapt them to transcript-supervised 50Salads."),
-], sub="CVA = the aligner   ·   MASRA = the language regulariser")
+    (0, "Both are grounding tasks and supervised — components, not drop-in methods."),
+], sub="we take principles and rebuild them for the weak setting — the adaptation is ours")
 
 # ------------------------------------------------------------------ 11. THE SPLIT
 bullets("The hybrid — which paper feeds which stage", [
