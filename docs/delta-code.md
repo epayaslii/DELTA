@@ -268,6 +268,46 @@ decoder, CRF, duration head, `test_tas_lta.py`, `metrics.py` — is untouched.
   tested, CPU-side prototype of the VLM-direct aligner; the integration target
   is `third_party/delta_wlta/src/atba_loss.py` + `asot.py`.
 
+## Official hyperparameters (DELTA supplementary material, 2026-09-13)
+
+For reproducing the DELTA baseline on the GPU (`--model_type atba` / `wclot`),
+confirmed from the paper's own supplementary:
+
+| | 50Salads | Breakfast |
+|---|---|---|
+| action vocabulary `|C|` | **17** (not 19 — `action_start`/`action_end` excluded) | 48 |
+| batch size | 4 | 2 |
+| epochs | 80 | 80 |
+| learning rate | 5e-4 | 1e-4 |
+| weight decay | 3e-4 | 5e-5 |
+| feature dim | 256 | 256 |
+| encoder input dim | 512 | 128 |
+| encoder layers / heads | 8 / 4 | 4 / 4 |
+| decoder layers | 4 | 2 |
+| decoder hidden dim / heads | 256 / 4 | 128 / 8 |
+| decoder queries `Nq` | 20 | 8 |
+| CRF weight | 1.0 | 0.1 |
+| dropout | 0.5 | – |
+| CRF candidates `K` | 25 | 25 |
+| γ1, γ2, γ3 (loss weights) | 0.6, 0.01, 1.0 | 0.6, 0.01, 1.0 |
+
+Training schedule: a short **warm-up** (`L_vid` only, so the boundary detector
+sees informative posteriors before any boundary is trusted) → **stage 1**
+(`L_A + L_TAS`, until the segmentation head's pseudo-labels are temporally
+consistent) → **stage 2** (add `L_DLTA`, down-weight segmentation). The
+transition is described as **criterion-based**, not a fixed epoch — a
+hardcoded value in the code (e.g. `stage2to3=30`) is an implementation choice
+tuned to hit that criterion, not a documented hyperparameter.
+
+**`|C| = 17` is the actionable one for us right now:** `delta.align.evaluate`'s
+`--ignore-startend` flag implements exactly this exclusion. Use it for every
+number meant to be comparable to DELTA — see `50salads-notes.md`.
+
+Not resolved by the supplementary: the exact I3D feature package used for the
+paper's 50Salads numbers. Different sources (the HF `dinggd/50salads` bundle we
+use, vs. other mirrors) may not be bit-identical, which matters when claiming a
+faithful reproduction rather than a comparable one.
+
 ## Next
 
 1. Get raw 50Salads video (still the blocker for VLM features).

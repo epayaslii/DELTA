@@ -64,17 +64,36 @@ straight into the future transcript `T*` and durations `d*`.
 
 ## The floor to beat
 
-Naive uniform alignment (split each video into `len(transcript)` equal parts,
-in transcript order — zero visual evidence):
+**Protocol note (2026-09-13):** DELTA's own supplementary material states the
+50Salads action vocabulary is **`|C| = 17`** — `action_start`/`action_end` are
+*not* part of the reported classes. Our harness's `--ignore-startend` flag
+implements exactly this; it must be on for any number meant to be comparable to
+DELTA. It was already used for the split-1 numbers throughout this doc and the
+implementation plan (verified 2026-09-13); the two rows below are the only
+pre-flag numbers in the repo and are **superseded** by the 5-split table that
+follows.
 
-| metric | naive uniform |
-|---|---|
-| MoF | 0.335 |
-| MoC | 0.342 |
-| edit | 100.0 *(order is exact by construction)* |
-| F1@10 / @25 / @50 | 49.4 / 40.6 / 20.3 |
+~~Naive uniform alignment (split each video into `len(transcript)` equal parts,
+in transcript order — zero visual evidence):~~
 
-Any real temporal-alignment method must clear **MoC ≈ 0.34**. ATBA reports
+~~| metric | naive uniform |~~
+~~|---|---|~~
+~~| MoF | 0.335 |~~
+~~| MoC | 0.342 |~~
+~~| edit | 100.0 |~~
+~~| F1@10 / @25 / @50 | 49.4 / 40.6 / 20.3 |~~
+
+**Current reference (17-class protocol, all 5 splits, `--ignore-startend`):**
+
+| method | MoF | MoC | F1@50 |
+|---|---|---|---|
+| naive-uniform (this floor) | 0.283 | **0.286** | 20.3 |
+
+Split-1 alone is easier (naive-uniform MoC 0.366 there) — quote the 5-split
+number when comparing methods; split-1 is fine for quick local iteration but
+state which one a number is.
+
+Any real temporal-alignment method must clear this floor. ATBA reports
 pseudo-label accuracy ~65% on Breakfast; the §4 evidence above says 50Salads
 will land lower, and closing that gap is the project.
 

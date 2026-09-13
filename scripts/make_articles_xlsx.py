@@ -115,7 +115,7 @@ ROWS = [
     # --- Baselines (comparison, not method) -------------------------------
     ("Baseline - no-evidence floor", "naive-uniform", "", "-", "-", "Baseline",
      "Split each video into len(transcript) equal parts in order", "-",
-     "measured: MoC 0.366"),
+     "measured: MoC 0.286 (5-split avg, 17-class) / 0.366 (split-1)"),
     ("Baseline - classifier-based TA", "ATBA",
      "https://arxiv.org/abs/2403.19225",
      "CVPR 2024 (iSEE-Laboratory/CVPR24_ATBA)", "Xu, Zheng", "Baseline",
