@@ -275,7 +275,7 @@ confirmed from the paper's own supplementary:
 
 | | 50Salads | Breakfast |
 |---|---|---|
-| action vocabulary `|C|` | **17** (not 19 — `action_start`/`action_end` excluded) | 48 |
+| action vocabulary `|C|` (alignment loss text/class tokens) | **17** — real actions only, `action_start`/`action_end` excluded (they aren't semantic actions you'd embed with text) | 48 |
 | batch size | 4 | 2 |
 | epochs | 80 | 80 |
 | learning rate | 5e-4 | 1e-4 |
@@ -299,9 +299,21 @@ transition is described as **criterion-based**, not a fixed epoch — a
 hardcoded value in the code (e.g. `stage2to3=30`) is an implementation choice
 tuned to hit that criterion, not a documented hyperparameter.
 
-**`|C| = 17` is the actionable one for us right now:** `delta.align.evaluate`'s
-`--ignore-startend` flag implements exactly this exclusion. Use it for every
-number meant to be comparable to DELTA — see `50salads-notes.md`.
+**Correction (same day):** `|C|=17` is scoped to the alignment loss's class
+tokens only, not the frame-scoring protocol. **Three granularities actually
+exist for 50Salads** — see the table below and `50salads-notes.md`'s protocol
+note. TA/segmentation-level MoC should stay at 19-class (mid, `-c 19`), which
+matches our data (`data/50salads/mapping.txt` has all 19); `--ignore-startend`
+(17-class) is a diagnostic, not the default. The *official* headline
+anticipation number (20.92) uses a third, coarser **eval granularity (`-c 12`,
+`FSeval`)**, which needs `mappingeval.txt` — **we don't have this mapping and
+haven't built it**; producing a Table-1-comparable DLTA number requires it.
+
+| granularity | classes | used for | do we have it? |
+|---|---|---|---|
+| mid (`FS`, `-c 19`) | 19 | TAS training + scoring | yes — our current data |
+| action-only | 17 | alignment loss class tokens | derived (exclude start/end) |
+| eval (`FSeval`, `-c 12`) | 12 | Table 1's headline anticipation MoC | **no — need `mappingeval.txt`** |
 
 Not resolved by the supplementary: the exact I3D feature package used for the
 paper's 50Salads numbers. Different sources (the HF `dinggd/50salads` bundle we

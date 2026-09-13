@@ -64,34 +64,40 @@ straight into the future transcript `T*` and durations `d*`.
 
 ## The floor to beat
 
-**Protocol note (2026-09-13):** DELTA's own supplementary material states the
-50Salads action vocabulary is **`|C| = 17`** — `action_start`/`action_end` are
-*not* part of the reported classes. Our harness's `--ignore-startend` flag
-implements exactly this; it must be on for any number meant to be comparable to
-DELTA. It was already used for the split-1 numbers throughout this doc and the
-implementation plan (verified 2026-09-13); the two rows below are the only
-pre-flag numbers in the repo and are **superseded** by the 5-split table that
-follows.
+**Protocol note (2026-09-13, corrected):** there are actually **three**
+50Salads granularities in the DELTA/WLTA code, not one — see `delta-code.md`.
+An earlier version of this note over-generalised the supplementary's `|C|=17`
+into "always exclude start/end"; that's wrong for TA/segmentation-level MoC.
 
-~~Naive uniform alignment (split each video into `len(transcript)` equal parts,
-in transcript order — zero visual evidence):~~
+| granularity | classes | used for |
+|---|---|---|
+| **mid** (`-d FS -c 19`) | 19 (17 actions + start/end) | TAS training + scoring — **what our data already is** |
+| action-only | 17 | the alignment loss's text/class-token vocabulary only (start/end aren't semantic actions) |
+| **eval** (`-d FSeval -c 12`) | 12, coarser (needs `mappingeval.txt`, **which we don't have**) | Table 1's official anticipation MoC (20.92) |
 
-~~| metric | naive uniform |~~
-~~|---|---|~~
-~~| MoF | 0.335 |~~
-~~| MoC | 0.342 |~~
-~~| edit | 100.0 |~~
-~~| F1@10 / @25 / @50 | 49.4 / 40.6 / 20.3 |~~
+**For TA-stage MoC (this doc, our current work): keep the 19-class mid
+granularity — don't pass `--ignore-startend`.** It matches what the code
+actually trains and scores the segmentation/TA stage on. `--ignore-startend`
+(17-class) stays useful only when explicitly diagnosing the start/end markers'
+effect on a number, not as the default.
 
-**Current reference (17-class protocol, all 5 splits, `--ignore-startend`):**
+Naive uniform alignment (split each video into `len(transcript)` equal parts,
+in transcript order — zero visual evidence), **19-class, all 5 splits — this
+was actually correct all along, re-verified 2026-09-13:**
 
-| method | MoF | MoC | F1@50 |
-|---|---|---|---|
-| naive-uniform (this floor) | 0.283 | **0.286** | 20.3 |
+| metric | naive uniform |
+|---|---|
+| MoF | 0.335 |
+| MoC | **0.342** |
+| edit | 100.0 *(order is exact by construction)* |
+| F1@10 / @25 / @50 | 49.4 / 40.6 / 20.3 |
 
-Split-1 alone is easier (naive-uniform MoC 0.366 there) — quote the 5-split
-number when comparing methods; split-1 is fine for quick local iteration but
-state which one a number is.
+For reference, the same floor under 17-class (`--ignore-startend`) is MoF
+0.283 / MoC 0.286 / F1@50 20.3 — lower, since start/end are comparatively easy
+to place and dropping them removes an easy class. **Don't mix the two** when
+comparing methods; state which convention a number uses. Split-1 alone (either
+convention) is easier than the 5-split average — fine for quick local
+iteration, but say so.
 
 Any real temporal-alignment method must clear this floor. ATBA reports
 pseudo-label accuracy ~65% on Breakfast; the §4 evidence above says 50Salads
@@ -105,6 +111,11 @@ will land lower, and closing that gap is the project.
   median per-transition boundary offset alongside.
 - Keep the naive-uniform and (later) supervised-warm-up numbers as the floor
   and ceiling around every ATBA result.
+
+*(Note: all measurements from here down — SigLIP2, ASOT, boundary refine —
+were run with `--ignore-startend` (17-class, split-1). That's an internally
+consistent set for comparing them to each other; just don't compare them
+directly to the 19-class 5-split floor above without converting.)*
 
 ## Measurement — single-frame SigLIP2 as a direct aligner (2026-09-03)
 
