@@ -204,3 +204,31 @@ search consistently helps more as noise grows. This confirms every below-floor
 result measured on real SigLIP2 features (`MoC 0.199–0.352` above) is a
 **feature problem, not an algorithm problem** — the thing to fix is the
 backbone (VideoLLaMA3), not the alignment logic.
+
+### Resolved — a parallel workstream's higher baseline number (2026-09-15)
+
+A parallel workstream reported a uniform-duration baseline of MoF 0.582 on the
+same data (confirmed byte-identical to ours — see below), vs our 0.391
+(split-1, 19-class). Root cause, found by them: their metric code applies
+**Hungarian bipartite label matching** before computing MoF — appropriate for
+unsupervised clustering (arbitrary cluster IDs) but wrong here, since the
+baseline's predictions already use the true semantic class IDs from the
+transcript. Recomputing with direct same-label accuracy gave **0.380**,
+matching our 0.391. Per-video (`rgb-01-1`): 0.5615 (theirs, corrected) vs 0.571
+(ours) — the small residual traced to evaluation-grid resolution (130-point
+coarse grid vs our native 11679-frame timeline), not a real discrepancy.
+
+**Confirmed our own metric code has no label remapping anywhere**
+(`grep -rniE "hungarian|linear_sum_assignment|bipartite" src/delta/` — clean).
+`mean_over_frames` / `segmentation_report` are direct-label comparisons only.
+
+**Open flag, not yet resolved:** the same metric function was used for that
+workstream's trained hybrid result (MoF 0.725 reported); if Hungarian matching
+inflated the baseline by ~0.20 MoF, the hybrid number likely needs the same
+re-audit before it's usable as a comparison target for our VideoLLaMA3 run.
+
+**Also confirmed same day:** the Kaggle `asad1212/50salads` package used by
+that workstream is **byte-identical** to our HF `dinggd/50salads` bundle
+(mapping, groundTruth, I3D features, splits — 0 mismatches across all 50
+videos). Data source was never the issue; ruled out before the metric-code
+diagnosis above.
