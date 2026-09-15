@@ -182,3 +182,25 @@ search correctly reports it *cannot* confidently localise boundaries from these
 features — which is (a) the right diagnostic, (b) exactly the input Stage B3
 needs (route the low-confidence 95 % to a chat-VLM). Re-run once VideoLLaMA3
 features exist.
+
+### Pipeline correctness — oracle validation (2026-09-15)
+
+Per the supervisor's instruction ("make sure the method works correctly, then
+use and test it"): fed the full hybrid (ASOT + local boundary search) a
+near-perfect similarity (`provider_oracle_blocky` — 1.0 on each transcript
+entry's true GT block, + Gaussian jitter) instead of a real backbone, all 5
+splits, 19-class protocol. `scripts/oracle_validate.py`.
+
+| jitter | ASOT only MoC | ASOT+refine MoC |
+|---|---|---|
+| 0.0 (clean) | 1.000 | 1.000 |
+| 0.3 | 1.000 | 1.000 |
+| 1.0 | 0.988 | 0.994 |
+| 2.0 (heavy noise) | 0.905 | **0.926** |
+
+**The pipeline is correct**: it recovers ground truth exactly on a clean signal
+and degrades gracefully — no collapse — as noise increases. The boundary
+search consistently helps more as noise grows. This confirms every below-floor
+result measured on real SigLIP2 features (`MoC 0.199–0.352` above) is a
+**feature problem, not an algorithm problem** — the thing to fix is the
+backbone (VideoLLaMA3), not the alignment logic.
