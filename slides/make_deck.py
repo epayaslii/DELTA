@@ -3,6 +3,8 @@ from pptx import Presentation
 from pptx.util import Inches, Pt
 from pptx.dml.color import RGBColor
 from pptx.enum.text import PP_ALIGN, MSO_ANCHOR
+from pptx.enum.shapes import MSO_SHAPE, MSO_CONNECTOR
+from pptx.enum.dml import MSO_LINE_DASH_STYLE
 
 NAVY = RGBColor(0x1F, 0x3A, 0x5F)
 ACCENT = RGBColor(0x1F, 0x6F, 0x4D)      # herb green
@@ -111,6 +113,84 @@ def section(title, kicker=None):
     return s
 
 
+def _dbox(slide, x, y, w, h, title_text, subtext=None, fill=NAVY, text_color=WHITE,
+         size=12.5, dashed=False):
+    shp = slide.shapes.add_shape(MSO_SHAPE.ROUNDED_RECTANGLE, Inches(x), Inches(y), Inches(w), Inches(h))
+    shp.fill.solid(); shp.fill.fore_color.rgb = fill
+    if dashed:
+        shp.line.color.rgb = fill; shp.line.width = Pt(1.25)
+        shp.line.dash_style = MSO_LINE_DASH_STYLE.DASH
+    else:
+        shp.line.fill.background()
+    shp.shadow.inherit = False
+    tf = shp.text_frame; tf.word_wrap = True; tf.vertical_anchor = MSO_ANCHOR.MIDDLE
+    tf.margin_left = Pt(5); tf.margin_right = Pt(5); tf.margin_top = Pt(2); tf.margin_bottom = Pt(2)
+    p = tf.paragraphs[0]; p.alignment = PP_ALIGN.CENTER
+    r = p.add_run(); r.text = title_text
+    r.font.size = Pt(size); r.font.bold = True; r.font.name = FONT; r.font.color.rgb = text_color
+    if subtext:
+        p2 = tf.add_paragraph(); p2.alignment = PP_ALIGN.CENTER
+        r2 = p2.add_run(); r2.text = subtext
+        r2.font.size = Pt(9.5); r2.font.italic = True; r2.font.name = FONT
+        r2.font.color.rgb = text_color
+    return shp
+
+
+def _darrow(slide, x1, y1, x2, y2, color=MUTED, dashed=False, width=1.5):
+    conn = slide.shapes.add_connector(MSO_CONNECTOR.STRAIGHT, Inches(x1), Inches(y1), Inches(x2), Inches(y2))
+    conn.line.color.rgb = color; conn.line.width = Pt(width)
+    if dashed:
+        conn.line.dash_style = MSO_LINE_DASH_STYLE.DASH
+    ln = conn.line._get_or_add_ln()
+    from pptx.oxml.ns import qn
+    tail = ln.makeelement(qn('a:tailEnd'), {'type': 'triangle', 'w': 'med', 'len': 'med'})
+    ln.append(tail)
+    return conn
+
+
+def architecture_diagram():
+    s = prs.slides.add_slide(BLANK); bg(s, WHITE)
+    title_bar(s, "Architecture — the hybrid pipeline",
+             sub="each stage's paper source is named underneath it; dashed = optional fallback")
+
+    # main vertical flow -----------------------------------------------------
+    fx, fw = 0.55, 6.55
+    rows = [
+        ("Input", "raw video + ordered transcript, no timestamps  ·  DELTA", ACCENT),
+        ("Stage 0 — semantic-guided sampling", "spend VLM compute near likely transitions  ·  LGTTP", NAVY),
+        ("Semantic front-end", "clip ↔ action cosine similarity  ·  OVTAS", NAVY),
+        ("Stage A — coarse ordered alignment", "fused-GW OT + monotonic decode  ·  ASOT / CLOT + HiERO-StepG", NAVY),
+        ("Stage B1 — local boundary search", "±window crossover search + confidence  ·  our design", FLAG),
+        ("Stage B2 — contrastive + relational refinement", "confidence-gated  ·  CVA principle → PBCR + MASRA LRCA/ESTA", NAVY),
+        ("Output", "dense Y*  →  unchanged DELTA decoder", ACCENT),
+    ]
+    y, h, gap = 1.65, 0.64, 0.155
+    centers = []
+    for title_text, sub, fill in rows:
+        _dbox(s, fx, y, fw, h, title_text, sub, fill=fill, size=12.5)
+        centers.append(y + h / 2)
+        y += h + gap
+    for i in range(len(rows) - 1):
+        _darrow(s, fx + fw / 2, centers[i] + 0.32, fx + fw / 2, centers[i + 1] - 0.32, color=MUTED)
+
+    # backbone, feeding three stages -----------------------------------------
+    bx, by, bw, bh = 8.55, 3.35, 2.55, 1.35
+    _dbox(s, bx, by, bw, bh, "VideoLLaMA3", "vision tower (similarity) + chat model\n(captions, hard-case reasoning)\nbackbone for every stage",
+         fill=ACCENT, size=13)
+    for row_i in (1, 2, 5):  # Stage 0, semantic front-end, Stage B2
+        _darrow(s, bx, by + bh / 2, fx + fw, centers[row_i], color=ACCENT, dashed=True, width=1.25)
+
+    # optional fallbacks -------------------------------------------------------
+    ox, ow, oh = 8.55, 3.75, 0.62
+    _dbox(s, ox, 5.35, ow, oh, "Optional Stage C", "iterative refinement if boundaries stay noisy  ·  CLOT / D-CLOT",
+         fill=LIGHT, text_color=INK, size=10.5, dashed=True)
+    _darrow(s, fx + fw, centers[5], ox, 5.35 + oh / 2, color=MUTED, dashed=True, width=1.1)
+    _dbox(s, ox, 6.15, ow, oh, "Optional Stage D", "expensive VLM reasoning, hardest boundaries only  ·  TOGA",
+         fill=LIGHT, text_color=INK, size=10.5, dashed=True)
+    _darrow(s, fx + fw, centers[5], ox, 6.15 + oh / 2, color=MUTED, dashed=True, width=1.1)
+    return s
+
+
 # ------------------------------------------------------------------ TITLE
 s = prs.slides.add_slide(BLANK); bg(s, WHITE)
 band = s.shapes.add_shape(1, 0, 0, Inches(13.333), Inches(2.5))
@@ -177,6 +257,9 @@ bullets("The research framing", [
     (0, "No single paper covers {weak supervision} × {VLM} × {ordered transcript alignment} — "
         "each stage borrows the piece that fits, and the boundary search is our own."),
 ], sub="weak alignment → refine  ·  a hybrid, stage by stage")
+
+# ------------------------------------------------------------------ 3b. ARCHITECTURE DIAGRAM
+architecture_diagram()
 
 # ------------------------------------------------------------------ 4. THE REPO
 table_slide("What's built — the repository",
