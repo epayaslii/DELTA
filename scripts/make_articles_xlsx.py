@@ -163,36 +163,59 @@ FILLS = {
 SUMMARY_HEADERS = ["Stage", "What we do", "Main source of inspiration",
                    "What we actually borrow", "Links"]
 
-# ---- our own plan (delta.align module map, not modelled on anyone else's table) ---
+# ---- aligned with docs/inherited-parts-explained.md (same 8 rows, same explanations, condensed for a cell) ---
 OURS = [
-    ("0. Data", "50Salads video + its transcript; no frame timestamps at any point",
-     "DELTA", "Task definition and weak-supervision constraint",
+    ("Input", "Raw video + ordered transcript, no timestamps anywhere", "DELTA",
+     "The weak-supervision setup itself, not a technique: only the ordered list of "
+     "actions is ever given, never when each one starts or ends. Everything "
+     "downstream has to work under that constraint.",
      ""),
-    ("1. Similarity", "Cosine-match each transcript action's text embedding against every frame",
-     "OVTAS (FAES)", "Zero-shot VLM matching, scored per transcript position rather than open-vocab",
+    ("Semantic front-end", "Encode short video clips and transcript actions into a shared semantic space",
+     "OVTAS",
+     "Score a frame against an action using a frozen vision-language model, with no "
+     "training: encode the frame and the action label into the same space and take "
+     "cosine similarity. OVTAS scores against an open, unordered action list; we "
+     "score against the actions in the order the transcript gives them.",
      "https://arxiv.org/abs/2602.21406"),
-    ("2. Coarse decode", "Turn that similarity into one ordered, monotone segmentation of the whole video",
-     "ASOT solver + HiERO-StepG's monotonicity constraint",
-     "`delta.align.asot`: fused-GW OT with a transcript-order prior, so a weak signal still degrades to something sane",
+    ("Stage A: coarse alignment", "Build the cost and force actions to appear in transcript order",
+     "HiERO-StepG (+ our own dynamic programming)",
+     "Force the predicted timeline to respect the transcript's order with no "
+     "exceptions -- if action 3 comes after action 2 in the recipe, its segment must "
+     "come after action 2's in time, always. Done algorithmically (DP/OT), not "
+     "learned, which rules out most wrong placements before the visual match matters.",
      "https://arxiv.org/abs/2605.31227"),
-    ("3. Per-boundary search", "Slide a window across each coarse cut and score every candidate split point",
-     "designed for this project", "`delta.align.refine`: scores + a prominence confidence per boundary",
-     ""),
-    ("4. Confidence-gated training signal", "Only the boundaries the search trusts become training anchors",
-     "CVA's boundary-contrastive idea, MASRA's relational loss",
-     "`delta.align.cbd` (PBCR) + `delta.align.masra_torch`: rebuilt on our own confident boundaries, not GT spans",
+    ("Stage B1: segment extent", "Find the confident temporal extent of each action around its coarse location",
+     "HiERO-StepG",
+     "Once you have a rough position, look at a local window around it to refine it "
+     "-- check frames just before/after the rough boundary and ask whether they "
+     "still belong to that action, rather than trusting the coarse placement as final.",
+     "https://arxiv.org/abs/2605.31227"),
+    ("Stage B2: exact transition", "Search specifically for the best crossover point",
+     "our design, inspired by CVA + MASRA",
+     "Two principles, not reused code: from CVA, a boundary frame should look the "
+     "same regardless of context and be distinct from its neighbours (CVA anchors "
+     "this on GT boundaries, which we don't have). From MASRA, judge frames by how "
+     "they relate to each other, not in isolation, and match that structure to what "
+     "the transcript implies. Rebuilt on our own confident current guess, not GT.",
      "https://github.com/byeol3325/CVA_cvpr ; https://arxiv.org/abs/2605.03398"),
-    ("5. Encoder", "One frozen model behind steps 1-4",
-     "VideoLLaMA3", "Similarity embeddings + captioning/reasoning from a single family, per the supervisor's direction",
-     "https://arxiv.org/abs/2501.13106"),
-    ("6. Fallback if noisy", "Re-estimate segment prototypes when short/ambiguous actions keep failing",
-     "CLOT / D-CLOT", "Only triggered if step 4 isn't enough",
-     "https://arxiv.org/abs/2608.05877"),
-    ("7. Fallback for hard cases", "Spend an expensive chat-VLM call only on the lowest-confidence boundaries",
-     "TOGA", "Selective, not run on every frame",
-     "https://arxiv.org/abs/2506.09445"),
-    ("8. Interface out", "Dense per-frame labels handed to the unchanged DELTA decoder",
-     "DELTA", "No change to anything downstream",
+    ("Optional Stage C", "Improve frame / segment consistency if boundaries remain noisy",
+     "CLOT / D-CLOT",
+     "Alternate between refining frame-level detail and segment-level structure "
+     "repeatedly, each informing the other. D-CLOT adds: periodically re-check "
+     "whether each action's 'typical example' is still accurate, especially for "
+     "short or easily-confused actions. A fallback, only if earlier stages aren't enough.",
+     "https://openaccess.thecvf.com/content/ICCV2025/papers/Bueno-Benito_CLOT_Closed_Loop_Optimal_Transport_for_Unsupervised_Action_Segmentation_ICCV_2025_paper.pdf ; https://arxiv.org/abs/2608.05877"),
+    ("Optional Stage D", "Reason only about difficult boundaries",
+     "TOGA / VideoLLaMA3",
+     "Ask a language-capable video model directly, but only when cheaper methods are "
+     "unsure. TOGA gets a VLM to answer 'when does this happen?' with no GT "
+     "timestamps by checking self-consistency (its answer, asked back as a question, "
+     "should describe the same event). Expensive -- only for the lowest-confidence boundaries.",
+     "https://arxiv.org/abs/2506.09445 ; https://arxiv.org/abs/2501.13106"),
+    ("Output", "Convert refined boundaries into dense Y*", "DELTA",
+     "The format everything must be handed back in: one label per video frame, "
+     "because that's what DELTA's existing downstream anticipation model expects. "
+     "We don't change that interface, only what produces the labels feeding into it.",
      ""),
 ]
 
@@ -216,7 +239,8 @@ def build():
             lc = ws0.cell(r, 5)
             lc.hyperlink = row[4]
             lc.font = link_font
-    for i, w in enumerate([26, 46, 26, 40, 52], 1):
+        ws0.row_dimensions[r].height = max(60, 15 * (len(row[3]) // 55 + 1))
+    for i, w in enumerate([20, 34, 24, 62, 36], 1):
         ws0.column_dimensions[get_column_letter(i)].width = w
     ws0.freeze_panes = "A2"
     ws0.auto_filter.ref = f"A1:{get_column_letter(len(SUMMARY_HEADERS))}{len(OURS) + 1}"
