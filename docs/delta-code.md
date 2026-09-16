@@ -320,6 +320,36 @@ paper's 50Salads numbers. Different sources (the HF `dinggd/50salads` bundle we
 use, vs. other mirrors) may not be bit-identical, which matters when claiming a
 faithful reproduction rather than a comparable one.
 
+## ⚠️ The shipped code's own MOF/mIoU are Hungarian-matched — don't trust them raw (2026-09-16)
+
+A parallel workstream found their uniform-duration baseline was inflated
+(0.582 vs a true 0.380) by Hungarian bipartite label matching in their metric
+code, appropriate for unsupervised clustering (arbitrary cluster IDs) but
+wrong once predictions already carry true semantic class IDs. Checking whether
+**this repo's own code** has the same issue:
+
+| metric | code path | Hungarian-matched? |
+|---|---|---|
+| **anticipation MoC** (Table 1's 20.92, `test_mean_moc_obsX_predY`) | `metrics.py::calculate_moc` ← `eval_file(..., classes={i: i for i in range(n_clusters)})` | **No** — literal identity mapping, direct label equality. Trustworthy as-is. |
+| **segmentation MOF / mIoU** (`50S_final_metrics.json`'s `MOF (%)` / `mIOU (%)`, from `run_50S_allmetrics.sh`) | `train.py::on_test_epoch_end` → `self.mof.compute()` / `self.miou.compute()` → `ClusteringMetrics` → `score_fn_lookup['mof'/'miou']` → `eval_mof`/`eval_miou` (`metrics.py`) → `pred_to_gt_match` → `scipy.optimize.linear_sum_assignment` | **Yes.** Same bug, baked into the official run script. |
+
+**Consequence:** running `run_50S_allmetrics.sh` as-is and reading off its
+`MOF (%)` / `mIOU (%)` would silently reproduce the same inflation. **Never
+trust those two fields; always rescore raw per-video predictions with
+`delta.align.segmentation_report`** (direct-label, no remapping — verified
+clean, see `50salads-notes.md`). The anticipation MoC needs no such rescoring.
+
+Also note `test_step`'s `segments` (the `atba` branch, ~line 1157) is the
+**inference-time** TAS output — `argmax` over the trained classifier's
+posteriors on the *observed* portion only, no transcript, matching the paper's
+"transcript discarded at inference." That is a real, dumpable, GPU-required
+quantity, but it is the classifier's generalisation to held-out video, not
+literally "`Y*` if the transcript were available" — the latter would need
+running the `atba` branch's boundary-detector + DP (used in `training_step`,
+not `test_step`) on held-out video+transcript pairs, which is not something
+the shipped code does anywhere. `scripts/dump_ta_pseudolabels.py` extracts the
+former (ready to run); the latter is a larger, unwritten change if we want it.
+
 ## Next
 
 1. Get raw 50Salads video (still the blocker for VLM features).
