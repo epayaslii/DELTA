@@ -9,13 +9,21 @@
  import gsw
  from transformer_futr import Transformer, PositionalEncoding
  from transformer_atba import TransformerEncoder, TransformerEncoderLayer, TransformerEncoderRoPELayer
-@@ -314,6 +316,13 @@
+@@ -314,6 +316,21 @@
          # ADD LOSSES
          self.stage1to2 = 10
          self.stage2to3 = 30
 +        self.gamma1, self.gamma1_lta = args.gamma1, args.gamma1_lta
 +        self.gamma2, self.gamma3 = args.gamma2, args.gamma3
 +        self._opt_reset_done = False
++        # --ta_source hybrid: Y* comes from hybrid_ta instead of ATBA's boundary detector + drop-DP
++        self.hybrid_ta = None
++        if args.ta_source == 'hybrid':
++            assert args.model_type == 'atba' and args.hybrid_sim_dir, '--ta_source hybrid needs --model_type atba and --hybrid_sim_dir'
++            from hybrid_ta import HybridConfig
++            from hybrid_ta.provider import HybridPseudoLabeler
++            self.hybrid_ta = HybridPseudoLabeler(args.hybrid_sim_dir,
++                                                 HybridConfig(method=args.hybrid_method, branches=args.hybrid_branches))
 +        # MoC over the core action classes only (boundary tokens found by name)
 +        boundary_ids = () if args.moc_all_classes else getattr(args, 'boundary_ids', ())
 +        self.moc_core_ids = core_class_ids(self.n_clusters, boundary_ids)
@@ -23,7 +31,20 @@
      def _average_precision_fallback(y_true, y_score):
          # y_true, y_score => 1D arrays
          # AP estilo 11-point (simple), suficiente como backup
-@@ -769,7 +778,7 @@
+@@ -523,7 +540,11 @@
+                     
+                     vid_multi_hot[i, cls_idx] = 1.0 
+ 
+-            atba_out = self.atba_loss(self.trainer.current_epoch, tok_logit, fr_logit, mask, transcripts, vid_multi_hot, features, 'name')
++            ext_pse_la = None
++            if self.hybrid_ta is not None:
++                ext_pse_la = self.hybrid_ta(fname, transcripts, mask, perc_obs + perc_pred).to(self.device)
++            atba_out = self.atba_loss(self.trainer.current_epoch, tok_logit, fr_logit, mask, transcripts, vid_multi_hot, features, 'name',
++                                      external_pse_la=ext_pse_la)
+             atba_tot = atba_out['total']
+             atba_tok = atba_out['tok_loss']
+             atba_frame = atba_out['fr_loss']
+@@ -769,7 +790,7 @@
                      tsm_loss = tsm_loss * 0.5
                      TAS_loss = atba_tot + tsm_loss
  
@@ -32,15 +53,14 @@
                  loss = TAS_loss 
  
              else:
-@@ -857,11 +866,11 @@
+@@ -857,11 +878,11 @@
                  
                   
                  #ce_tas_lta_loss = ce_tas_lta_loss * 0.01
 -                ctc_overview_loss = ctc_overview_loss * 0.01
--                LTA_loss = loss_crf + loss_bacr_next + loss_bacr_prev + loss_duration + ctc_overview_loss + loss_future_matrix
--                TAS_loss = TAS_loss * 0.8
 +                ctc_overview_loss = ctc_overview_loss * self.gamma2
-+                LTA_loss = loss_crf + loss_bacr_next + loss_bacr_prev + loss_duration + ctc_overview_loss + loss_future_matrix
+                 LTA_loss = loss_crf + loss_bacr_next + loss_bacr_prev + loss_duration + ctc_overview_loss + loss_future_matrix
+-                TAS_loss = TAS_loss * 0.8
 +                TAS_loss = TAS_loss * self.gamma1_lta
  
 -                loss = TAS_loss + LTA_loss
@@ -48,7 +68,7 @@
                  #print(f'[E {self.trainer.current_epoch}] loss_crf: {loss_crf} | loss_bacr_next: {loss_bacr_next} | loss_bacr_prev: {loss_bacr_prev} | loss_duration: {loss_duration} || TOTAL: {loss}')
              
              if args.model_type == 'wclot':
-@@ -1047,7 +1056,7 @@
+@@ -1047,7 +1068,7 @@
  
                      T_actions, F_actions = eval_file(pred_gt, eval_prediction, alpha,
                                                      classes={i: i for i in range(self.n_clusters)})
@@ -57,7 +77,7 @@
                      seq_moc[key] = (moc, T_actions, F_actions, pred_gt, eval_prediction)
  
                  all_seq_mocs.append(seq_moc)
-@@ -1224,7 +1233,10 @@
+@@ -1224,7 +1245,10 @@
              alpha, beta = key
              T = self.T_actions_dict[key]
              F = self.F_actions_dict[key]
@@ -69,11 +89,10 @@
              #self.log(f"test_moc_obs{alpha}_pred{beta}", moc)
              
          mof_per_video = []
-@@ -1382,6 +1394,17 @@
-             self.egtea_scores_emission.clear()
+@@ -1383,6 +1407,17 @@
              self.egtea_labels_true.clear()
              self.egtea_eval_verbs = set()
-+
+ 
 +    def on_train_epoch_start(self):
 +        # Stage 1 -> Stage 2 (adds L_DLTA): fresh AdamW state, base LR
 +        if (not args.no_opt_reset and not self._opt_reset_done
@@ -84,10 +103,11 @@
 +                print('[stage2] WARNING: an LR scheduler is attached and was NOT reset')
 +            self._opt_reset_done = True
 +            print(f'[stage2] epoch {self.trainer.current_epoch}: optimizer state reset, lr={self.lr}')
- 
++
      # I'm using different optimizer just for an exam, tomorrow i'll set as default
      def configure_optimizers(self):
-@@ -1548,7 +1571,7 @@
+         #return torch.optim.Adam(self.parameters(), lr=self.lr, weight_decay=self.weight_decay)
+@@ -1548,7 +1583,7 @@
      #WLTA parameters
      parser.add_argument('--LTA_dec_hidden_dim', type=int, default=128) ## <--- need optim
      parser.add_argument('--LTA_dec_n_head', type=int, default=2) ## <--- need optim
@@ -96,7 +116,7 @@
      parser.add_argument('--LTA_dec_n_query', type=int, default=20)
      parser.add_argument('--crf_weight', type=float, default=1.0)
      
-@@ -1561,7 +1584,14 @@
+@@ -1561,7 +1596,19 @@
  
      parser.add_argument('--model_type', type=str, default='wclot', help='model workflow [wclot | atba]')
      parser.add_argument('--atba_enc_layers',  type=int, default=6)   ## <--- need optim
@@ -107,18 +127,43 @@
 +    parser.add_argument('--gamma1_lta', type=float, default=0.8, help='TAS weight once L_DLTA is on (0.8 = original code)')
 +    parser.add_argument('--gamma2', type=float, default=0.01, help='weight of the CTC overview loss')
 +    parser.add_argument('--gamma3', type=float, default=1.0, help='weight of L_DLTA')
++    parser.add_argument('--ta_source', choices=['delta', 'hybrid'], default='delta', help='origin of the pseudo-labels Y*')
++    parser.add_argument('--hybrid_sim_dir', type=str, default=None, help='per-video <id>.npz with frame x class similarity')
++    parser.add_argument('--hybrid_method', choices=['dp', 'asot'], default='asot')
++    parser.add_argument('--hybrid_branches', choices=['a', 'b', 'ab', 'none'], default='ab')
++    parser.add_argument('--fs_root', type=str, default='/home/datasets/50Salads_I3D', help='50Salads root (features/, groundTruth/, splits/, mapping.txt)')
 +    parser.add_argument('--no_opt_reset', action='store_true', help='keep optimizer state across the stage switch')
 +    parser.add_argument('--moc_all_classes', action='store_true', help='MoC over all classes incl. action_start/end')
      parser.add_argument('--rope', action='store_true')
  
      # Ablations
-@@ -1650,7 +1680,11 @@
+@@ -1636,21 +1683,25 @@
+         pass
+     elif args.dataset == 'FS': 
+         # Split 1
+-        data_train = VideoDataset_splits('/home/datasets/50Salads_I3D/', args.dataset, args.n_frames,
++        data_train = VideoDataset_splits(args.fs_root, args.dataset, args.n_frames,
+                                         standardise=False, random=True, action_class=args.activity,
+                                         new_feat=args.feat, new_feat_path=args.new_feat_path,
+-                                        split=f'/home/datasets/50Salads_I3D/splits/train.split{args.split}.bundle', train_split=True)
++                                        split=f'{args.fs_root}/splits/train.split{args.split}.bundle', train_split=True)
+ 
+-        data_val = VideoDataset_splits('/home/datasets/50Salads_I3D/', args.dataset, args.n_frames,
++        data_val = VideoDataset_splits(args.fs_root, args.dataset, args.n_frames,
+                                       standardise=False, random=False, action_class=args.activity,
+                                       new_feat=args.feat, new_feat_path=args.new_feat_path,
+-                                      split=f'/home/datasets/50Salads_I3D/splits/test.split{args.split}.bundle')
++                                      split=f'{args.fs_root}/splits/test.split{args.split}.bundle')
+ 
+-        data_test = VideoDataset_splits('/home/datasets/50Salads_I3D/', args.dataset, args.n_frames,
++        data_test = VideoDataset_splits(args.fs_root, args.dataset, args.n_frames,
                                         standardise=False, random=False, action_class=args.activity,
                                         new_feat=args.feat, new_feat_path=args.new_feat_path,
-                                        split=f'/home/datasets/50Salads_I3D/splits/test.split{args.split}.bundle')  
+-                                       split=f'/home/datasets/50Salads_I3D/splits/test.split{args.split}.bundle')  
 -        id2name = load_id2name("/home/datasets/Breakfast_I3D/mapping/mapping.txt")   
++                                       split=f'{args.fs_root}/splits/test.split{args.split}.bundle')  
 +        # class names from the SAME mapping.txt the loader above reads -> id<->name is 1-to-1
-+        id2name_raw = load_id2name_from_mapping('/home/datasets/50Salads_I3D/mapping.txt')
++        id2name_raw = load_id2name_from_mapping(os.path.join(args.fs_root, 'mapping.txt'))
 +        assert len(id2name_raw) == args.n_clusters, (len(id2name_raw), args.n_clusters)
 +        args.boundary_ids = boundary_class_ids(id2name_raw)
 +        id2name = humanize_id2name(id2name_raw)

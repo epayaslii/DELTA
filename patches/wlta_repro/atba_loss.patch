@@ -1,0 +1,22 @@
+--- a/src/atba_loss.py
++++ b/src/atba_loss.py
+@@ -191,13 +191,16 @@
+ 
+         self.device = device
+ 
+-    def forward(self, epoch, tok_logit, fr_logit, mask, transcript, vid_multi_hot, feat, name):
++    def forward(self, epoch, tok_logit, fr_logit, mask, transcript, vid_multi_hot, feat, name, external_pse_la=None):
+         # tok_logit (b, cls), fr_logit (b, t, cls), mask (b, t), vid_multi_hot (b, cls), feat (b, t, c)
+         # transcript: list(tensor)
+         tok_loss = self.token_cls_loss(tok_logit, vid_multi_hot)    # vid loss in the paper
+         
+-        bdy_lst = self.bdydet.forward(epoch, fr_logit, mask, transcript, name)
+-        pse_la = self.generate_pseudo_label(bdy_lst, fr_logit, mask, transcript, name)
++        if external_pse_la is None:   # --ta_source delta (original ATBA boundary detector + drop-DP)
++            bdy_lst = self.bdydet.forward(epoch, fr_logit, mask, transcript, name)
++            pse_la = self.generate_pseudo_label(bdy_lst, fr_logit, mask, transcript, name)
++        else:                         # --ta_source hybrid: Y* from hybrid_ta, same downstream losses
++            pse_la = external_pse_la
+ 
+         if epoch < self.warm_epc:
+             warm_loss = tok_loss
