@@ -1,0 +1,127 @@
+--- a/src/train_window_tokenizer.py
++++ b/src/train_window_tokenizer.py
+@@ -23,6 +23,8 @@
+ import asot
+ from utils import *
+ from metrics import ClusteringMetrics, indep_eval_metrics, eval_file, calculate_moc
++from wlta_fixes import (load_id2name_from_mapping, humanize_id2name, boundary_class_ids,
++                        core_class_ids, masked_moc, reset_optimizer_state)
+ import gsw
+ from transformer_futr import Transformer, PositionalEncoding
+ from transformer_atba import TransformerEncoder, TransformerEncoderLayer, TransformerEncoderRoPELayer
+@@ -314,6 +316,13 @@
+         # ADD LOSSES
+         self.stage1to2 = 10
+         self.stage2to3 = 30
++        self.gamma1, self.gamma1_lta = args.gamma1, args.gamma1_lta
++        self.gamma2, self.gamma3 = args.gamma2, args.gamma3
++        self._opt_reset_done = False
++        # MoC over the core action classes only (boundary tokens found by name)
++        boundary_ids = () if args.moc_all_classes else getattr(args, 'boundary_ids', ())
++        self.moc_core_ids = core_class_ids(self.n_clusters, boundary_ids)
++        self.moc_boundary_ids = tuple(boundary_ids)
+     def _average_precision_fallback(y_true, y_score):
+         # y_true, y_score => 1D arrays
+         # AP estilo 11-point (simple), suficiente como backup
+@@ -769,7 +778,7 @@
+                     tsm_loss = tsm_loss * 0.5
+                     TAS_loss = atba_tot + tsm_loss
+ 
+-                TAS_loss = TAS_loss * 0.6
++                TAS_loss = TAS_loss * self.gamma1
+                 loss = TAS_loss 
+ 
+             else:
+@@ -857,11 +866,11 @@
+                 
+                  
+                 #ce_tas_lta_loss = ce_tas_lta_loss * 0.01
+-                ctc_overview_loss = ctc_overview_loss * 0.01
+-                LTA_loss = loss_crf + loss_bacr_next + loss_bacr_prev + loss_duration + ctc_overview_loss + loss_future_matrix
+-                TAS_loss = TAS_loss * 0.8
++                ctc_overview_loss = ctc_overview_loss * self.gamma2
++                LTA_loss = loss_crf + loss_bacr_next + loss_bacr_prev + loss_duration + ctc_overview_loss + loss_future_matrix
++                TAS_loss = TAS_loss * self.gamma1_lta
+ 
+-                loss = TAS_loss + LTA_loss
++                loss = TAS_loss + self.gamma3 * LTA_loss
+                 #print(f'[E {self.trainer.current_epoch}] loss_crf: {loss_crf} | loss_bacr_next: {loss_bacr_next} | loss_bacr_prev: {loss_bacr_prev} | loss_duration: {loss_duration} || TOTAL: {loss}')
+             
+             if args.model_type == 'wclot':
+@@ -1047,7 +1056,7 @@
+ 
+                     T_actions, F_actions = eval_file(pred_gt, eval_prediction, alpha,
+                                                     classes={i: i for i in range(self.n_clusters)})
+-                    moc = calculate_moc(T_actions, F_actions)
++                    moc = masked_moc(T_actions, F_actions, self.moc_core_ids)
+                     seq_moc[key] = (moc, T_actions, F_actions, pred_gt, eval_prediction)
+ 
+                 all_seq_mocs.append(seq_moc)
+@@ -1224,7 +1233,10 @@
+             alpha, beta = key
+             T = self.T_actions_dict[key]
+             F = self.F_actions_dict[key]
+-            moc = calculate_moc(T, F)
++            moc = masked_moc(T, F, self.moc_core_ids)
++            if self.moc_boundary_ids:  # how much GT the mask actually removed
++                n_b = int(sum(T[i] + F[i] for i in self.moc_boundary_ids))
++                print(f'[moc] key={key} core-class MoC={moc:.4f} | all-class MoC={calculate_moc(T, F):.4f} | boundary-token GT frames dropped={n_b}')
+             #self.log(f"test_moc_obs{alpha}_pred{beta}", moc)
+             
+         mof_per_video = []
+@@ -1382,6 +1394,17 @@
+             self.egtea_scores_emission.clear()
+             self.egtea_labels_true.clear()
+             self.egtea_eval_verbs = set()
++
++    def on_train_epoch_start(self):
++        # Stage 1 -> Stage 2 (adds L_DLTA): fresh AdamW state, base LR
++        if (not args.no_opt_reset and not self._opt_reset_done
++                and self.trainer.current_epoch == self.stage2to3):
++            for opt in self.trainer.optimizers:
++                reset_optimizer_state(opt)
++            if self.trainer.lr_scheduler_configs:
++                print('[stage2] WARNING: an LR scheduler is attached and was NOT reset')
++            self._opt_reset_done = True
++            print(f'[stage2] epoch {self.trainer.current_epoch}: optimizer state reset, lr={self.lr}')
+ 
+     # I'm using different optimizer just for an exam, tomorrow i'll set as default
+     def configure_optimizers(self):
+@@ -1548,7 +1571,7 @@
+     #WLTA parameters
+     parser.add_argument('--LTA_dec_hidden_dim', type=int, default=128) ## <--- need optim
+     parser.add_argument('--LTA_dec_n_head', type=int, default=2) ## <--- need optim
+-    parser.add_argument('--LTA_dec_layers', type=int, default=3) ## <--- need optim
++    parser.add_argument('--LTA_dec_layers', type=int, default=4) ## anticipation decoder depth (Supp. Table 2)
+     parser.add_argument('--LTA_dec_n_query', type=int, default=20)
+     parser.add_argument('--crf_weight', type=float, default=1.0)
+     
+@@ -1561,7 +1584,14 @@
+ 
+     parser.add_argument('--model_type', type=str, default='wclot', help='model workflow [wclot | atba]')
+     parser.add_argument('--atba_enc_layers',  type=int, default=6)   ## <--- need optim
+-    parser.add_argument('--atba_encIn_dim',  type=int, default=256)    ## <--- need optim
++    parser.add_argument('--atba_encIn_dim',  type=int, default=512)    ## encoder input dim (Supp. Table 2)
++    # loss weights / schedule
++    parser.add_argument('--gamma1', type=float, default=0.6, help='TAS weight before the LTA stage')
++    parser.add_argument('--gamma1_lta', type=float, default=0.8, help='TAS weight once L_DLTA is on (0.8 = original code)')
++    parser.add_argument('--gamma2', type=float, default=0.01, help='weight of the CTC overview loss')
++    parser.add_argument('--gamma3', type=float, default=1.0, help='weight of L_DLTA')
++    parser.add_argument('--no_opt_reset', action='store_true', help='keep optimizer state across the stage switch')
++    parser.add_argument('--moc_all_classes', action='store_true', help='MoC over all classes incl. action_start/end')
+     parser.add_argument('--rope', action='store_true')
+ 
+     # Ablations
+@@ -1650,7 +1680,11 @@
+                                        standardise=False, random=False, action_class=args.activity,
+                                        new_feat=args.feat, new_feat_path=args.new_feat_path,
+                                        split=f'/home/datasets/50Salads_I3D/splits/test.split{args.split}.bundle')  
+-        id2name = load_id2name("/home/datasets/Breakfast_I3D/mapping/mapping.txt")   
++        # class names from the SAME mapping.txt the loader above reads -> id<->name is 1-to-1
++        id2name_raw = load_id2name_from_mapping('/home/datasets/50Salads_I3D/mapping.txt')
++        assert len(id2name_raw) == args.n_clusters, (len(id2name_raw), args.n_clusters)
++        args.boundary_ids = boundary_class_ids(id2name_raw)
++        id2name = humanize_id2name(id2name_raw)
+     args.id2name = id2name      
+     val_loader = DataLoader(data_val, batch_size=1, shuffle=False, num_workers=8)
+     train_loader = DataLoader(data_train, batch_size=args.batch_size, shuffle=True, num_workers=8)       
