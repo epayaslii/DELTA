@@ -19,7 +19,7 @@ from .boundary_refinement import BranchResult, branch_a_semantic, branch_b_relat
 @dataclass
 class HybridConfig:
     method: str = "asot"          # coarse solver: asot | dp  (asot: +10 pts frame-acc over dp on local SigLIP2 videos)
-    branches: str = "ab"          # which refinement branches: a | b | ab | none
+    branches: str = "a"           # refinement: a | b | ab | none. Default a: on local SigLIP2 videos A helps, B hurts (see README)
     radius: int = 30
     window: int = 20
     w_visual: float = 0.5

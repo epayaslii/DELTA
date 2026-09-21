@@ -362,6 +362,8 @@ def test_slurm_scripts_build_valid_commands(twt, tmp_path):
             assert a.text_encoder == "distilbert" and a.use_text and not a.no_opt_reset
     a = _parse_args(twt, hyb[0][2:])
     assert a.hybrid_sim_dir == str(tmp_path) and a.hybrid_branches == "a" and a.hybrid_method == "asot"
+    d = _slurm_cmds("submit_50salads_hybrid.sh", {"SIM_DIR": str(tmp_path)})[0]                    # defaults: ASOT + branch A
+    assert _parse_args(twt, d[2:]).hybrid_branches == "a" and HybridConfig().branches == "a" and HybridConfig().method == "asot"
     # array mode: one split per task
     assert len(_slurm_cmds("submit_50salads_baseline.sh", {"SLURM_ARRAY_TASK_ID": "3"})) == 1
 

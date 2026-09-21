@@ -15,7 +15,7 @@
 source "${SLURM_SUBMIT_DIR:-.}/scripts/slurm/common.sh"
 SIM_DIR="${SIM_DIR:?set SIM_DIR to the directory of <video>.npz similarity files}"
 HYBRID_METHOD="${HYBRID_METHOD:-asot}"
-HYBRID_BRANCHES="${HYBRID_BRANCHES:-ab}"
+HYBRID_BRANCHES="${HYBRID_BRANCHES:-a}"
 [ -d "$SIM_DIR" ] || { echo "SIM_DIR not found: $SIM_DIR"; exit 2; }
 for s in $SPLITS; do
     run_split "hybrid_${HYBRID_METHOD}_${HYBRID_BRANCHES}" "$s" \

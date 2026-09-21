@@ -31,5 +31,5 @@ class-name embeddings ─┴─► similarity.py ──► sim (T,N)          # 
 | dp   | 0.261 | 0.290 | 0.200 | 0.235 |
 | asot | 0.366 | **0.423** | 0.289 | 0.390 |
 
-ASOT ≫ DP; branch A helps; **branch B hurts and drags A+B below A alone.** Ten videos, not the 5-split protocol, and no
-tuning — read it as "B needs work before it is the default", not as a result.
+ASOT ≫ DP; branch A helps; **branch B hurts and drags A+B below A alone.** So the default is **ASOT + A**; B stays
+available (`--hybrid_branches b|ab`) as an ablation. This is one split's test set (10 videos), no tuning.

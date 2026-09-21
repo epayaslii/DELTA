@@ -130,7 +130,7 @@
 +    parser.add_argument('--ta_source', choices=['delta', 'hybrid'], default='delta', help='origin of the pseudo-labels Y*')
 +    parser.add_argument('--hybrid_sim_dir', type=str, default=None, help='per-video <id>.npz with frame x class similarity')
 +    parser.add_argument('--hybrid_method', choices=['dp', 'asot'], default='asot')
-+    parser.add_argument('--hybrid_branches', choices=['a', 'b', 'ab', 'none'], default='ab')
++    parser.add_argument('--hybrid_branches', choices=['a', 'b', 'ab', 'none'], default='a')
 +    parser.add_argument('--fs_root', type=str, default='/home/datasets/50Salads_I3D', help='50Salads root (features/, groundTruth/, splits/, mapping.txt)')
 +    parser.add_argument('--no_opt_reset', action='store_true', help='keep optimizer state across the stage switch')
 +    parser.add_argument('--moc_all_classes', action='store_true', help='MoC over all classes incl. action_start/end')
