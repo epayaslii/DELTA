@@ -24,12 +24,16 @@ class-name embeddings ─┴─► similarity.py ──► sim (T,N)          # 
 * Similarity is only meaningful in a text-aligned space (SigLIP2 / VideoLLaMA3). `FrameActionSimilarity` can project 2048-D
   I3D and text to a shared 256-d, but those projections are untrained.
 
-## First numbers (10 local videos, coarse SigLIP2, T=256, frame accuracy vs GT — GT used for scoring only)
+## Numbers
 
-| coarse | none | A | B | A+B |
-|---|---|---|---|---|
-| dp   | 0.261 | 0.290 | 0.200 | 0.235 |
-| asot | 0.366 | **0.423** | 0.289 | 0.390 |
+All 50 videos / 5 splits, coarse SigLIP2, training-free (`docs/hybrid-ta-5split.md`):
 
-ASOT ≫ DP; branch A helps; **branch B hurts and drags A+B below A alone.** So the default is **ASOT + A**; B stays
-available (`--hybrid_branches b|ab`) as an ablation. This is one split's test set (10 videos), no tuning.
+| method | 19-class MoC | 17-class MoC | F1@50 |
+|---|---|---|---|
+| naive-uniform | 0.342 | 0.286 | 20.2 |
+| ASOT | 0.362 | 0.342 | 19.3 |
+| **ASOT + A (default)** | **0.422** | **0.395** | **24.8** |
+| ASOT + B | 0.335 | 0.311 | 18.0 |
+| ASOT + A + B | 0.395 | 0.366 | 22.9 |
+
+A helps in every split; B hurts (four splits) or ties (one), so B is opt-in (`--hybrid_branches b|ab`).

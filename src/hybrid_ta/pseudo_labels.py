@@ -27,6 +27,8 @@ class HybridConfig:
     agree_tol: int = 10
     min_len: int = 1
     transition_penalty: float = 0.0
+    rho: float = 0.15             # asot: transcript-order temporal prior weight
+    alpha: float = 0.3            # asot: Gromov-Wasserstein structure weight (0 = pure OT)
 
 
 @dataclass
@@ -73,7 +75,7 @@ def generate_pseudo_labels(sim_tn: np.ndarray, transcript: list[int],
     sim_tn = np.asarray(sim_tn, dtype=np.float64)
     T, N = sim_tn.shape
     assert N == len(transcript), (N, len(transcript))
-    entry = coarse_align(sim_tn, cfg.method, cfg.transition_penalty)
+    entry = coarse_align(sim_tn, cfg.method, cfg.transition_penalty, rho=cfg.rho, alpha=cfg.alpha)
     coarse = coarse_boundaries(entry)
     if cfg.branches == "none" or not coarse:
         bounds, conf = coarse, [0.0] * len(coarse)

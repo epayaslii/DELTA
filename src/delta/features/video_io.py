@@ -103,6 +103,11 @@ class VideoReader:
                 got[i] = frame.to_ndarray(format="rgb24")
                 if len(got) == len(want):
                     break
+        if len(got) < len(want):
+            # container metadata can over-report the frame count (rgb-17-1: 11154 vs 11128
+            # decodable); repeat the last decoded frame for indices past the real end.
+            last = got[max(got)]
+            got.update({i: last for i in want if i not in got})
         return np.stack([got[i] for i in indices], axis=0)
 
     def close(self) -> None:

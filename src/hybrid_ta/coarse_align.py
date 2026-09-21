@@ -29,6 +29,6 @@ def coarse_align(sim_tn: np.ndarray, method: str = "dp", transition_penalty: flo
         return align_dp(sim_tn.T, list(range(N)), transition_penalty=transition_penalty).entry_of_frame
     if method == "asot":
         cost = 1.0 - sim_tn
-        res = align_asot(cost, list(range(N)), rho=rho, **asot_kw)
+        res = align_asot(cost, list(range(N)), rho=rho, **asot_kw)   # asot_kw: alpha, eps, radius, ...
         return np.asarray(res.y_star, dtype=np.int64)  # identity transcript -> labels == entry index
     raise ValueError(f"unknown method {method!r} (dp | asot)")
