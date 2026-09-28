@@ -88,7 +88,7 @@ def _parse_args(twt, argv):
 # the Table-2 / launcher flag set (50Salads, atba), CPU
 BASE_ARGV = ["-d", "FS", "-ac", "all", "-c", str(N_CLS), "-mpos", "19000", "-f", str(T), "--model_type", "atba",
              "--atba_enc_layers", "8", "--atba_encIn_dim", "512", "--LTA_dec_hidden_dim", "256",
-             "--LTA_dec_n_head", "4", "--LTA_dec_n_query", "20", "--LTA_dec_layers", "4",
+             "--LTA_dec_n_head", "4", "--LTA_dec_n_query", "20", "--LTA_dec_layers", "3",  # code/config, not Supp. Table 2 (see README)
              "--dropout", "0.5", "-bs", str(B), "--ABLAT_tsm", "--use_text", "--text_encoder", "distilbert",
              "--nofprojections", "3"]
 
@@ -172,7 +172,7 @@ def test_text_grounding_uses_50salads_names(twt, tmp_path):
 
 
 # ----------------------------------------------------------------------------
-# 1b. architecture: 2048 -> 512 encoder -> 256 projection -> 4-layer decoder
+# 1b. architecture: 2048 -> 512 encoder -> 256 projection -> LTA_dec_layers-deep decoder
 # ----------------------------------------------------------------------------
 def test_architecture_dims(twt, tmp_path):
     args, ssl = _build(twt, tmp_path)
@@ -180,10 +180,10 @@ def test_architecture_dims(twt, tmp_path):
     assert len(ssl.TAS_encoder.layers) == 8
     lta = ssl.lta_model
     assert isinstance(lta.clot2LTA, torch.nn.Linear) and (lta.clot2LTA.in_features, lta.clot2LTA.out_features) == (512, 256)
-    assert len(lta.LTA_decoder.layers) == 4
-    # defaults of the patched script themselves (no flags): decoder depth 4, encoder input 512
+    assert len(lta.LTA_decoder.layers) == 3  # matches --LTA_dec_layers passed in BASE_ARGV
+    # defaults of the patched script themselves (no flags): decoder depth 3 (code/config, not Table 2), encoder input 512
     d = _parse_args(twt, ["-d", "FS", "-ac", "all", "-c", "19"])
-    assert d.LTA_dec_layers == 4 and d.atba_encIn_dim == 512
+    assert d.LTA_dec_layers == 3 and d.atba_encIn_dim == 512
 
     # shape flow: [B,T,2048] -> in_proj -> [B,T,512] -> clot2LTA -> [B,T,256] -> decoder memory
     x = torch.randn(B, T, D_IN)
@@ -356,7 +356,7 @@ def test_slurm_scripts_build_valid_commands(twt, tmp_path):
         assert [_parse_args(twt, c[2:]).split for c in cmds] == [1, 2, 3, 4, 5]
         for c in cmds:
             a = _parse_args(twt, c[2:])                            # drops "python3 src/train_window_tokenizer.py"
-            assert a.ta_source == source and a.n_clusters == 19 and a.LTA_dec_layers == 4
+            assert a.ta_source == source and a.n_clusters == 19 and a.LTA_dec_layers == 3
             assert a.atba_encIn_dim == 512 and a.LTA_dec_hidden_dim == 256 and a.atba_enc_layers == 8
             assert (a.gamma1, a.gamma2, a.gamma3) == (0.6, 0.01, 1.0) and a.n_epochs == 80
             assert a.text_encoder == "distilbert" and a.use_text and not a.no_opt_reset

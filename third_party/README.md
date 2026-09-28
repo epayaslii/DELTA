@@ -51,3 +51,24 @@ M1 TACoS check — see [`../scripts/masra_m1.md`](../scripts/masra_m1.md),
 `features/tacos/` — CG-DETR's SlowFast+CLIP features for TACoS (305 MB, from the
 CG-DETR repo's Google Drive). `slowfast_features` (T, 2304), `clip_features`
 (T, 512), `clip_text_features` per query (L, 512). 127 videos.
+
+
+## delta_wlta_supervisor_copy/ — fresh copy from the supervisor (gitignored)
+
+Sent 2026-09-22 alongside the D-CLOT code, to help debug the 17.15 vs 19.11 MoC
+reproduction gap. Confirmed byte-identical to `delta_wlta/` for
+`train_window_tokenizer.py` / `atba_loss.py` (our patch targets are the real
+bugs, not something already fixed upstream). Extra files not in our copy:
+`configs_wandb/{hyperparameter,sweep}.yaml` and `src/sweep_LTA.yaml` — these are
+hyperparameter-sweep *search grids* (e.g. `LTA_dec_layers: [2, 3, 4]`), not the
+final chosen values; they confirm 3 was a legitimate candidate but don't pin
+down which one produced the published number. No checkpoints included.
+
+## d_clot/ — D-CLOT / CLOT++ (gitignored)
+
+The supervisor's follow-up to CLOT, sent as code only (the mentioned weights
+were not actually included — ask for them again if needed). Covers 50Salads via
+`run_50s_CLOT++_sota.sh` / `run_50s_CLOT++B_sota.sh`, and is the only place so
+far referencing `mapping/mappingeval.txt` (12-class eval granularity, Table 1's
+20.92) — the file itself still isn't bundled. Relevant if we revisit optional
+Stage C (closed-loop frame/segment OT refinement).

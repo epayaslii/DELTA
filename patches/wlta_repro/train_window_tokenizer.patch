@@ -107,16 +107,18 @@
      # I'm using different optimizer just for an exam, tomorrow i'll set as default
      def configure_optimizers(self):
          #return torch.optim.Adam(self.parameters(), lr=self.lr, weight_decay=self.weight_decay)
-@@ -1548,7 +1583,7 @@
+@@ -1548,7 +1583,9 @@
      #WLTA parameters
      parser.add_argument('--LTA_dec_hidden_dim', type=int, default=128) ## <--- need optim
      parser.add_argument('--LTA_dec_n_head', type=int, default=2) ## <--- need optim
 -    parser.add_argument('--LTA_dec_layers', type=int, default=3) ## <--- need optim
-+    parser.add_argument('--LTA_dec_layers', type=int, default=4) ## anticipation decoder depth (Supp. Table 2)
++    parser.add_argument('--LTA_dec_layers', type=int, default=3) ## anticipation decoder depth. Supp. Table 2 says 4,
++    ## but every 50Salads launcher (incl. this script's own) passes --LTA_dec_layers 3 explicitly; per the group's
++    ## guidance, the code/config that produced the published numbers is trusted over the table on a mismatch.
      parser.add_argument('--LTA_dec_n_query', type=int, default=20)
      parser.add_argument('--crf_weight', type=float, default=1.0)
      
-@@ -1561,7 +1596,19 @@
+@@ -1561,7 +1598,19 @@
  
      parser.add_argument('--model_type', type=str, default='wclot', help='model workflow [wclot | atba]')
      parser.add_argument('--atba_enc_layers',  type=int, default=6)   ## <--- need optim
@@ -137,7 +139,7 @@
      parser.add_argument('--rope', action='store_true')
  
      # Ablations
-@@ -1636,21 +1683,25 @@
+@@ -1636,21 +1685,25 @@
          pass
      elif args.dataset == 'FS': 
          # Split 1

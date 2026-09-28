@@ -58,7 +58,7 @@ run_split () {
         --fs_root "$FS_ROOT" --split "$split" --group "$tag" --path "$out" --mode binary
         --model_type atba --ABLAT_tsm --nofprojections 3 --nseg 0 -bs 4 --dropout 0.5
         --atba_enc_layers 8 --atba_encIn_dim 512
-        --LTA_dec_hidden_dim 256 --LTA_dec_n_head 4 --LTA_dec_layers 4 --LTA_dec_n_query 20
+        --LTA_dec_hidden_dim 256 --LTA_dec_n_head 4 --LTA_dec_layers 3 --LTA_dec_n_query 20
         --crf_weight 1.0 --gamma1 0.6 --gamma2 0.01 --gamma3 1.0
         --use_text --text_encoder distilbert)
     [ "$WANDB" = 1 ] && cmd+=(--wandb)
